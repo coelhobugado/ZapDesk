@@ -2,40 +2,66 @@
 
 [Ler este README em portugues](./README.md)
 
-ZapDesk is a Windows desktop client built with Electron, TypeScript, React, and Vite. It loads WhatsApp Web inside its own desktop window and adds practical desktop features that the browser and the official Windows app do not always handle well.
+Alternative desktop client for WhatsApp Web on Windows.
 
-The project was created for a simple reason: the official WhatsApp app for Windows can freeze, feel heavy, or fail at inconvenient times. WhatsApp Web works, but it gets lost among browser tabs and notifications are not always reliable. ZapDesk aims to fill that gap with a stable, focused desktop wrapper for personal use.
+ZapDesk was created for people who use WhatsApp on desktop but deal with the official Windows app freezing, feeling heavy, or failing at inconvenient times. WhatsApp Web works in the browser, but it gets mixed with other tabs and notifications are not always reliable. ZapDesk puts WhatsApp Web in its own window, with native notifications, tray icon support, and desktop shortcuts.
 
 > ZapDesk does not automate messages, does not send bulk messages, does not spam, and does not try to bypass WhatsApp rules. It is only an alternative desktop client for normal WhatsApp Web usage.
 
-## Features
+## Download
+
+If you only want to install and use it, download the installer:
+
+[Download ZapDesk for Windows (.exe)](https://github.com/coelhobugado/ZapDesk/releases/download/v1.0.5/ZapDesk-1.0.5-Setup.exe)
+
+Portable option, without installer:
+
+[Download portable version (.zip)](https://github.com/coelhobugado/ZapDesk/releases/download/v1.0.5/ZapDesk-1.0.5-Portable.zip)
+
+Full release page:
+
+[ZapDesk 1.0.5 on GitHub Releases](https://github.com/coelhobugado/ZapDesk/releases/tag/v1.0.5)
+
+## How To Use
+
+1. Download `ZapDesk-1.0.5-Setup.exe`.
+2. Run the installer.
+3. Open ZapDesk.
+4. Scan the WhatsApp Web QR Code if requested.
+5. After that, your session remains saved locally.
+
+## Main Features
 
 - WhatsApp Web in a dedicated desktop window.
 - Persistent session, so you do not need to scan the QR Code every time.
-- Windows tray icon with quick actions.
-- Close button can minimize the app to tray.
 - Native Windows notifications for new messages.
-- Unread counter in the window title, tray, and taskbar icon overlay when supported.
+- Tray icon with open, hide, reload, and quit actions.
+- Close button can minimize the app to tray.
+- Unread counter in the title, tray, and taskbar icon overlay when supported.
 - Discreet floating quick-action button.
-- Global shortcuts:
-  - `Ctrl+Shift+W`: show/hide window
-  - `Ctrl+R`: reload WhatsApp
-  - `Ctrl+Shift+Q`: fully quit the app
 - Optional always-on-top mode.
 - Optional start with Windows.
 - Local settings screen.
-- External navigation protection.
 - External links open in the default browser.
-- Secure preload with `contextIsolation: true` and `nodeIntegration: false`.
+- External navigation protection.
 
-## Download
+## Shortcuts
 
-Download the latest version from GitHub Releases.
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+Shift+W` | Show or hide the window |
+| `Ctrl+R` | Reload WhatsApp Web |
+| `Ctrl+Shift+Q` | Fully quit ZapDesk |
 
-Published files:
+## Why It Exists
 
-- `ZapDesk-1.0.5-Setup.exe`: Windows installer.
-- `ZapDesk-1.0.5-Portable.zip`: portable/unpacked version.
+ZapDesk aims to be a more stable and focused way to use WhatsApp Web on Windows:
+
+- the official app can freeze or feel heavy;
+- WhatsApp Web in the browser gets lost among tabs;
+- browser notifications can fail;
+- closing the browser can interrupt your workflow;
+- a dedicated window improves focus, organization, and quick access.
 
 ## Development
 
@@ -92,12 +118,14 @@ The `appId` should remain `com.zapdesk.app`. For new versions, change only `vers
 
 The local WhatsApp session is stored in the user's app data and is not removed during updates.
 
-## About automation
-
-This version does not use `whatsapp-web.js`. There is only an extension point at `src/main/optional/whatsappWebJsAdapter.ts` for a possible future optional integration, without implementing spam, bulk sending, or abusive automation.
-
-## Privacy
+## Privacy And Security
 
 ZapDesk has no backend server and does not send messages, contacts, or sessions to third parties. Authentication and usage continue to happen through WhatsApp Web.
 
+The app uses `contextIsolation: true`, `nodeIntegration: false`, and a controlled preload so dangerous APIs are not exposed to the renderer.
+
 Local data, cache, and session files are kept out of the repository and ignored by Git.
+
+## About Automation
+
+This version does not use `whatsapp-web.js`. There is only an extension point at `src/main/optional/whatsappWebJsAdapter.ts` for a possible future optional integration, without implementing spam, bulk sending, or abusive automation.
