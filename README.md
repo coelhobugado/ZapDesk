@@ -1,5 +1,7 @@
 # ZapDesk
 
+[Read this README in English](./README.en.md)
+
 ZapDesk e um cliente desktop para Windows feito com Electron, TypeScript, React e Vite. Ele carrega o WhatsApp Web em uma janela propria e adiciona recursos de desktop que o navegador e o app oficial nem sempre entregam bem.
 
 O projeto nasceu de uma necessidade pratica: o aplicativo oficial do WhatsApp para Windows pode travar, consumir recursos demais ou falhar em momentos importantes. Ja o WhatsApp Web no navegador funciona, mas fica perdido entre varias abas, as notificacoes podem falhar e a experiencia nao parece um aplicativo dedicado. O ZapDesk tenta resolver esse espaco: um wrapper leve, estavel e focado em uso pessoal.
