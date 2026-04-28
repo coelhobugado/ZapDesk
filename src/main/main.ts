@@ -17,6 +17,7 @@ import {
 } from 'electron';
 import electronUpdater, { type ProgressInfo, type UpdateInfo } from 'electron-updater';
 import Store from 'electron-store';
+import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -244,11 +245,12 @@ function ensureShortcutIcon(count: number): string {
   return iconFile;
 }
 
-function desktopShortcutPaths(): string[] {
+function windowsShortcutPaths(): string[] {
   if (process.platform !== 'win32') return [];
 
   const paths = new Set<string>();
   paths.add(path.join(app.getPath('desktop'), 'ZapDesk.lnk'));
+  paths.add(path.join(app.getPath('appData'), 'Microsoft', 'Internet Explorer', 'Quick Launch', 'User Pinned', 'TaskBar', 'ZapDesk.lnk'));
 
   if (process.env.PUBLIC) {
     paths.add(path.join(process.env.PUBLIC, 'Desktop', 'ZapDesk.lnk'));
@@ -257,7 +259,13 @@ function desktopShortcutPaths(): string[] {
   return [...paths];
 }
 
-function updateDesktopShortcutIcon(count: number): void {
+function refreshWindowsIconCache(): void {
+  if (process.platform !== 'win32') return;
+
+  execFile('ie4uinit.exe', ['-show'], { windowsHide: true }, () => undefined);
+}
+
+function updateWindowsShortcutIcons(count: number): void {
   if (process.platform !== 'win32') return;
 
   const nextLabel = count > 0 ? (count > 99 ? '99plus' : String(count)) : 'default';
@@ -266,7 +274,7 @@ function updateDesktopShortcutIcon(count: number): void {
   const icon = count > 0 ? ensureShortcutIcon(count) : process.execPath;
   let updated = false;
 
-  for (const shortcutPath of desktopShortcutPaths()) {
+  for (const shortcutPath of windowsShortcutPaths()) {
     if (!fs.existsSync(shortcutPath)) continue;
 
     try {
@@ -285,6 +293,7 @@ function updateDesktopShortcutIcon(count: number): void {
 
   if (updated) {
     lastShortcutIconLabel = nextLabel;
+    refreshWindowsIconCache();
   }
 }
 
@@ -620,7 +629,7 @@ function updateUnreadCount(count: number, title = 'ZapDesk'): void {
   mainWindow?.setTitle(appTitle);
   tray?.setToolTip(count > 0 ? `ZapDesk - ${count} mensagens nao lidas` : 'ZapDesk');
   updateUnreadVisuals(count);
-  updateDesktopShortcutIcon(count);
+  updateWindowsShortcutIcons(count);
 
   // Windows aceita badge em alguns ambientes; quando nao aceita, o titulo ainda exibe o contador.
   app.setBadgeCount(count);
@@ -813,7 +822,7 @@ if (!singleInstanceLock) {
 
 app.on('before-quit', () => {
   isQuitting = true;
-  updateDesktopShortcutIcon(0);
+  updateWindowsShortcutIcons(0);
 });
 
 app.on('will-quit', () => {
