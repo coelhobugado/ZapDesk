@@ -33,7 +33,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 const whatsappUrl = 'https://web.whatsapp.com/';
+const appUserModelId = 'com.zapdesk.app';
 const { autoUpdater } = electronUpdater;
+
+if (process.platform === 'win32') {
+  app.setAppUserModelId(appUserModelId);
+}
 
 app.commandLine.appendSwitch('high-dpi-support', '1');
 app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar');
@@ -65,6 +70,7 @@ let updateStatus: AppUpdateStatus = {
 let checkingForUpdate = false;
 let updateReadyToInstall = false;
 const unreadIconCache = new Map<string, NativeImage>();
+const trayIconSize = process.platform === 'win32' ? 32 : 22;
 
 function assetPath(...segments: string[]): string {
   if (isDev) {
@@ -78,7 +84,93 @@ function iconPath(): string {
   return assetPath('assets', 'zapdesk.png');
 }
 
-function createUnreadIcon(count: number, size = 256): NativeImage {
+function appIcon(size = 256): NativeImage {
+  const image = nativeImage.createFromPath(iconPath());
+  if (image.isEmpty()) return nativeImage.createEmpty();
+  return image.resize({ width: size, height: size, quality: 'best' });
+}
+
+function setPixel(bitmap: Buffer, width: number, x: number, y: number, red: number, green: number, blue: number, alpha = 255): void {
+  if (x < 0 || y < 0 || x >= width) return;
+
+  const offset = (y * width + x) * 4;
+  if (offset < 0 || offset + 3 >= bitmap.length) return;
+
+  bitmap[offset] = blue;
+  bitmap[offset + 1] = green;
+  bitmap[offset + 2] = red;
+  bitmap[offset + 3] = alpha;
+}
+
+function fillCircle(
+  bitmap: Buffer,
+  width: number,
+  height: number,
+  centerX: number,
+  centerY: number,
+  radius: number,
+  color: [number, number, number, number]
+): void {
+  const radiusSquared = radius * radius;
+  const startX = Math.max(0, Math.floor(centerX - radius));
+  const endX = Math.min(width - 1, Math.ceil(centerX + radius));
+  const startY = Math.max(0, Math.floor(centerY - radius));
+  const endY = Math.min(height - 1, Math.ceil(centerY + radius));
+
+  for (let y = startY; y <= endY; y += 1) {
+    for (let x = startX; x <= endX; x += 1) {
+      const dx = x - centerX;
+      const dy = y - centerY;
+      if (dx * dx + dy * dy <= radiusSquared) {
+        setPixel(bitmap, width, x, y, color[0], color[1], color[2], color[3]);
+      }
+    }
+  }
+}
+
+const digitMasks: Record<string, string[]> = {
+  '0': ['111', '101', '101', '101', '111'],
+  '1': ['010', '110', '010', '010', '111'],
+  '2': ['111', '001', '111', '100', '111'],
+  '3': ['111', '001', '111', '001', '111'],
+  '4': ['101', '101', '111', '001', '001'],
+  '5': ['111', '100', '111', '001', '111'],
+  '6': ['111', '100', '111', '101', '111'],
+  '7': ['111', '001', '001', '001', '001'],
+  '8': ['111', '101', '111', '101', '111'],
+  '9': ['111', '101', '111', '001', '111'],
+  '+': ['000', '010', '111', '010', '000']
+};
+
+function drawBadgeText(bitmap: Buffer, width: number, text: string, centerX: number, centerY: number, scale: number): void {
+  const glyphWidth = 3 * scale;
+  const glyphHeight = 5 * scale;
+  const spacing = Math.max(1, Math.floor(scale / 2));
+  const totalWidth = text.length * glyphWidth + Math.max(0, text.length - 1) * spacing;
+  const startX = Math.round(centerX - totalWidth / 2);
+  const startY = Math.round(centerY - glyphHeight / 2);
+
+  [...text].forEach((char, charIndex) => {
+    const mask = digitMasks[char] ?? digitMasks['0'];
+    const glyphX = startX + charIndex * (glyphWidth + spacing);
+
+    mask.forEach((row, rowIndex) => {
+      [...row].forEach((pixel, colIndex) => {
+        if (pixel !== '1') return;
+
+        const blockX = glyphX + colIndex * scale;
+        const blockY = startY + rowIndex * scale;
+        for (let y = 0; y < scale; y += 1) {
+          for (let x = 0; x < scale; x += 1) {
+            setPixel(bitmap, width, blockX + x, blockY + y, 255, 255, 255, 255);
+          }
+        }
+      });
+    });
+  });
+}
+
+function createUnreadIcon(count: number, size = 32): NativeImage {
   const label = count > 99 ? '99+' : String(count);
   const cacheKey = `${label}:${size}`;
   const cachedIcon = unreadIconCache.get(cacheKey);
@@ -87,16 +179,19 @@ function createUnreadIcon(count: number, size = 256): NativeImage {
     return cachedIcon;
   }
 
-  const fontSize = label.length > 2 ? 58 : label.length > 1 ? 72 : 88;
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 256 256">
-      <rect width="256" height="256" rx="44" fill="#25D366"/>
-      <text x="128" y="151" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="116" font-weight="800" fill="#06130D">Z</text>
-      <circle cx="190" cy="66" r="52" fill="#E13D3D" stroke="#101817" stroke-width="10"/>
-      <text x="190" y="${label.length > 2 ? 82 : 90}" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="#FFFFFF">${label}</text>
-    </svg>`;
+  const base = appIcon(size);
+  if (base.isEmpty()) return base;
 
-  const icon = nativeImage.createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+  const bitmap = Buffer.from(base.toBitmap());
+  const badgeRadius = Math.max(6, Math.round(size * 0.31));
+  const badgeCenterX = size - badgeRadius;
+  const badgeCenterY = badgeRadius;
+
+  fillCircle(bitmap, size, size, badgeCenterX, badgeCenterY, badgeRadius + 2, [16, 24, 23, 255]);
+  fillCircle(bitmap, size, size, badgeCenterX, badgeCenterY, badgeRadius, [225, 61, 61, 255]);
+  drawBadgeText(bitmap, size, label, badgeCenterX, badgeCenterY, label.length > 2 ? 2 : Math.max(2, Math.round(size / 14)));
+
+  const icon = nativeImage.createFromBitmap(bitmap, { width: size, height: size });
   unreadIconCache.set(cacheKey, icon);
   return icon;
 }
@@ -183,8 +278,14 @@ function createWindow(): void {
     if (!isQuitting && getSettings().minimizeToTray) {
       event.preventDefault();
       mainWindow?.hide();
+      updateUnreadVisuals(unreadCount);
     }
   });
+
+  mainWindow.on('hide', () => updateUnreadVisuals(unreadCount));
+  mainWindow.on('minimize', () => updateUnreadVisuals(unreadCount));
+  mainWindow.on('restore', () => updateUnreadVisuals(unreadCount));
+  mainWindow.on('show', () => updateUnreadVisuals(unreadCount));
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -200,7 +301,7 @@ function createWindow(): void {
 }
 
 function createTray(): void {
-  const image = nativeImage.createFromPath(iconPath());
+  const image = appIcon(trayIconSize);
   defaultTrayIcon = image.isEmpty() ? nativeImage.createEmpty() : image;
   tray = new Tray(defaultTrayIcon);
   tray.setToolTip('ZapDesk');
@@ -455,9 +556,11 @@ function maybeNotify(count: number): void {
 
 function updateUnreadVisuals(count: number): void {
   if (count > 0) {
-    const unreadIcon = createUnreadIcon(count);
+    const unreadIcon = createUnreadIcon(count, trayIconSize);
+    const overlayIcon = createUnreadIcon(count, 32);
     tray?.setImage(unreadIcon);
-    mainWindow?.setOverlayIcon(unreadIcon.resize({ width: 32, height: 32 }), `${count} mensagens nao lidas`);
+    mainWindow?.setOverlayIcon(overlayIcon, `${count} mensagens nao lidas`);
+    mainWindow?.flashFrame(true);
     return;
   }
 
@@ -593,7 +696,7 @@ if (!singleInstanceLock) {
   });
 
   app.whenReady().then(() => {
-    app.setAppUserModelId('com.zapdesk.app');
+    app.setAppUserModelId(appUserModelId);
     Menu.setApplicationMenu(null);
     configurePersistentSession();
     configureAutoUpdater();
