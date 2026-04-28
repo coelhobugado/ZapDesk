@@ -192,7 +192,35 @@ function createUnreadIcon(count: number, size = 32): NativeImage {
 
   fillCircle(bitmap, size, size, badgeCenterX, badgeCenterY, badgeRadius + 2, [16, 24, 23, 255]);
   fillCircle(bitmap, size, size, badgeCenterX, badgeCenterY, badgeRadius, [225, 61, 61, 255]);
-  drawBadgeText(bitmap, size, label, badgeCenterX, badgeCenterY, label.length > 2 ? 2 : Math.max(2, Math.round(size / 14)));
+  drawBadgeText(bitmap, size, label, badgeCenterX, badgeCenterY, label.length > 2 ? 1 : Math.max(1, Math.round(size / 14)));
+
+  const icon = nativeImage.createFromBitmap(bitmap, { width: size, height: size });
+  unreadIconCache.set(cacheKey, icon);
+  return icon;
+}
+
+function createOverlayIcon(count: number, size = 32): NativeImage {
+  const label = count > 99 ? '99+' : String(count);
+  const cacheKey = `overlay:${label}:${size}`;
+  const cachedIcon = unreadIconCache.get(cacheKey);
+
+  if (cachedIcon) {
+    return cachedIcon;
+  }
+
+  const base = appIcon(size);
+  if (base.isEmpty()) return base;
+
+  const bitmap = Buffer.from(base.toBitmap());
+  bitmap.fill(0); // Make transparent
+
+  const badgeRadius = Math.max(8, Math.round(size * 0.45));
+  const badgeCenterX = Math.round(size / 2);
+  const badgeCenterY = Math.round(size / 2);
+
+  fillCircle(bitmap, size, size, badgeCenterX, badgeCenterY, badgeRadius + 1, [16, 24, 23, 255]);
+  fillCircle(bitmap, size, size, badgeCenterX, badgeCenterY, badgeRadius, [225, 61, 61, 255]);
+  drawBadgeText(bitmap, size, label, badgeCenterX, badgeCenterY, label.length > 2 ? 1 : 2);
 
   const icon = nativeImage.createFromBitmap(bitmap, { width: size, height: size });
   unreadIconCache.set(cacheKey, icon);
@@ -262,6 +290,7 @@ function windowsShortcutPaths(): string[] {
 function refreshWindowsIconCache(): void {
   if (process.platform !== 'win32') return;
 
+  // Em Windows 10/11, atualizar o cache de icones da barra de tarefas e da area de trabalho
   execFile('ie4uinit.exe', ['-show'], { windowsHide: true }, () => undefined);
 }
 
@@ -659,7 +688,7 @@ function maybeNotify(count: number): void {
 function updateUnreadVisuals(count: number): void {
   if (count > 0) {
     const unreadIcon = createUnreadIcon(count, trayIconSize);
-    const overlayIcon = createUnreadIcon(count, 32);
+    const overlayIcon = createOverlayIcon(count, 32);
     tray?.setImage(unreadIcon);
     mainWindow?.setOverlayIcon(overlayIcon, `${count} mensagens nao lidas`);
     mainWindow?.flashFrame(true);
