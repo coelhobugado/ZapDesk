@@ -1,14 +1,28 @@
-import { Bell, Moon, Pin, RotateCcw, Save, X } from 'lucide-react';
-import type { AppSettings } from '../../shared/settings';
+import { Bell, Download, Moon, Pin, RefreshCw, RotateCcw, Save, X } from 'lucide-react';
+import type { AppSettings, AppUpdateStatus } from '../../shared/settings';
 
 type Props = {
   settings: AppSettings;
   onChange: (settings: Partial<AppSettings>) => void;
   onClose: () => void;
   onClearSession: () => void;
+  updateStatus: AppUpdateStatus;
+  onCheckUpdates: () => void;
+  onInstallUpdate: () => void;
 };
 
-export function SettingsPanel({ settings, onChange, onClose, onClearSession }: Props) {
+export function SettingsPanel({
+  settings,
+  onChange,
+  onClose,
+  onClearSession,
+  updateStatus,
+  onCheckUpdates,
+  onInstallUpdate
+}: Props) {
+  const checking = updateStatus.state === 'checking' || updateStatus.state === 'downloading';
+  const downloaded = updateStatus.state === 'downloaded';
+
   return (
     <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="Configuracoes do ZapDesk">
       <section className="settings-panel">
@@ -58,6 +72,37 @@ export function SettingsPanel({ settings, onChange, onClose, onClearSession }: P
             checked={settings.darkTheme}
             onChange={(checked) => onChange({ darkTheme: checked })}
           />
+          <ToggleRow
+            icon={<Download size={18} />}
+            title="Atualizacoes automaticas"
+            description="Verifica novas versoes ao abrir o ZapDesk."
+            checked={settings.autoUpdate}
+            onChange={(checked) => onChange({ autoUpdate: checked })}
+          />
+
+          <section className="update-section" aria-label="Atualizacoes do ZapDesk">
+            <div className="update-copy">
+              <strong>Versao {updateStatus.currentVersion}</strong>
+              <small>{formatUpdateStatus(updateStatus)}</small>
+            </div>
+            {typeof updateStatus.percent === 'number' && (
+              <div className="update-progress" aria-label={`Progresso ${updateStatus.percent}%`}>
+                <span style={{ width: `${updateStatus.percent}%` }} />
+              </div>
+            )}
+            <div className="update-actions">
+              <button type="button" onClick={onCheckUpdates} disabled={checking || downloaded}>
+                <RefreshCw size={17} className={checking ? 'spin' : undefined} />
+                Verificar agora
+              </button>
+              {downloaded && (
+                <button type="button" className="primary" onClick={onInstallUpdate}>
+                  <Download size={17} />
+                  Reiniciar e instalar
+                </button>
+              )}
+            </div>
+          </section>
         </div>
 
         <footer>
@@ -69,6 +114,29 @@ export function SettingsPanel({ settings, onChange, onClose, onClearSession }: P
       </section>
     </div>
   );
+}
+
+function formatUpdateStatus(status: AppUpdateStatus): string {
+  if (status.message) return status.message;
+
+  switch (status.state) {
+    case 'checking':
+      return 'Verificando atualizacoes...';
+    case 'available':
+      return status.availableVersion ? `Atualizacao ${status.availableVersion} encontrada.` : 'Atualizacao encontrada.';
+    case 'downloading':
+      return 'Baixando atualizacao...';
+    case 'downloaded':
+      return 'Atualizacao baixada. Reinicie para instalar.';
+    case 'not-available':
+      return 'Voce ja esta usando a versao mais recente.';
+    case 'error':
+      return 'Nao foi possivel verificar atualizacoes.';
+    case 'disabled':
+      return 'Verificacao automatica desativada.';
+    default:
+      return 'Pronto para verificar novas versoes.';
+  }
 }
 
 function ToggleRow({

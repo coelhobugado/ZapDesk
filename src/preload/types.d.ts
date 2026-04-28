@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { AppSettings, ConnectionState, UnreadPayload } from '../shared/settings';
+import type { AppSettings, AppUpdateStatus, ConnectionState, UnreadPayload } from '../shared/settings';
 
 declare global {
   interface Window {
@@ -8,10 +8,14 @@ declare global {
       updateSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>;
       reloadWhatsApp: () => Promise<void>;
       clearSession: () => Promise<void>;
+      getUpdateStatus: () => Promise<AppUpdateStatus>;
+      checkForUpdates: () => Promise<AppUpdateStatus>;
+      installUpdate: () => Promise<void>;
       toggleWindow: () => Promise<void>;
       quitApp: () => Promise<void>;
       openExternal: (url: string) => Promise<void>;
       onSettingsChanged: (callback: (settings: AppSettings) => void) => () => void;
+      onUpdateChanged: (callback: (status: AppUpdateStatus) => void) => () => void;
       onUnreadChanged: (callback: (payload: UnreadPayload) => void) => () => void;
       onConnectionChanged: (callback: (state: ConnectionState) => void) => () => void;
       onLoadFailed: (callback: (message: string) => void) => () => void;

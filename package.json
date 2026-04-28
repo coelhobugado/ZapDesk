@@ -1,6 +1,6 @@
 {
   "name": "zapdesk",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Cliente desktop alternativo e estavel para WhatsApp Web.",
   "author": "ZapDesk",
   "private": true,
@@ -17,7 +17,8 @@
     "clean": "rimraf dist release"
   },
   "dependencies": {
-    "electron-store": "^10.1.0"
+    "electron-store": "^10.1.0",
+    "electron-updater": "^6.8.3"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",
@@ -43,6 +44,13 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "coelhobugado",
+        "repo": "ZapDesk"
+      }
+    ],
     "files": [
       "dist/**/*",
       "package.json"

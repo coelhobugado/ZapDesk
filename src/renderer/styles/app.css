@@ -480,6 +480,78 @@ button {
   transform: translateX(20px);
 }
 
+.update-section {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.update-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.update-copy strong,
+.update-copy small {
+  display: block;
+}
+
+.update-copy strong {
+  font-size: 14px;
+}
+
+.update-copy small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.update-progress {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--panel-strong);
+}
+
+.update-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 160ms ease;
+}
+
+.update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.update-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 144px;
+  height: 36px;
+  gap: 8px;
+  padding: 0 13px;
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--panel-strong);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.update-actions button.primary {
+  color: #06130d;
+  background: var(--accent);
+}
+
+.update-actions button:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
 .settings-panel footer {
   justify-content: flex-end;
   padding: 16px 18px;

@@ -14,11 +14,15 @@ import {
   X
 } from 'lucide-react';
 import type { AppSettings, ConnectionState } from '../shared/settings';
-import { defaultSettings } from '../shared/settings';
+import { defaultSettings, type AppUpdateStatus } from '../shared/settings';
 import { desktopChromeUserAgent } from '../shared/browserProfile';
 import { SettingsPanel } from './components/SettingsPanel';
 
 const whatsappUrl = 'https://web.whatsapp.com/';
+const defaultUpdateStatus: AppUpdateStatus = {
+  state: 'idle',
+  currentVersion: '0.0.0'
+};
 
 export function App() {
   const webviewRef = useRef<WebviewTag | null>(null);
@@ -34,6 +38,7 @@ export function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [connection, setConnection] = useState<ConnectionState>(navigator.onLine ? 'online' : 'offline');
   const [unread, setUnread] = useState(0);
+  const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus>(defaultUpdateStatus);
 
   const themeClass = settings.darkTheme ? 'theme-dark' : 'theme-light';
 
@@ -77,6 +82,11 @@ export function App() {
     setSettings(updated);
   }, []);
 
+  const checkForUpdates = useCallback(async () => {
+    const status = await window.zapdesk.checkForUpdates();
+    setUpdateStatus(status);
+  }, []);
+
   const setWebviewRef = useCallback((node: HTMLElement | null) => {
     const element = node as WebviewTag | null;
     webviewRef.current = element;
@@ -85,7 +95,9 @@ export function App() {
 
   useEffect(() => {
     void window.zapdesk.getSettings().then(setSettings);
+    void window.zapdesk.getUpdateStatus().then(setUpdateStatus);
     const unsubSettings = window.zapdesk.onSettingsChanged(setSettings);
+    const unsubUpdates = window.zapdesk.onUpdateChanged(setUpdateStatus);
     const unsubUnread = window.zapdesk.onUnreadChanged((payload) => setUnread(payload.unreadCount));
     const unsubConnection = window.zapdesk.onConnectionChanged(setConnection);
     const unsubFailed = window.zapdesk.onLoadFailed((message) => {
@@ -113,6 +125,7 @@ export function App() {
 
     return () => {
       unsubSettings();
+      unsubUpdates();
       unsubUnread();
       unsubConnection();
       unsubFailed();
@@ -327,6 +340,9 @@ export function App() {
           onClose={() => setSettingsOpen(false)}
           onChange={(next) => void updateSettings(next)}
           onClearSession={() => void window.zapdesk.clearSession()}
+          updateStatus={updateStatus}
+          onCheckUpdates={() => void checkForUpdates()}
+          onInstallUpdate={() => void window.zapdesk.installUpdate()}
         />
       )}
     </div>

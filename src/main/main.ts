@@ -6,6 +6,7 @@ import {
   Tray,
   globalShortcut,
   ipcMain,
+  dialog,
   shell,
   nativeImage,
   session,
@@ -14,10 +15,17 @@ import {
   type MenuItemConstructorOptions,
   type NativeImage
 } from 'electron';
+import { autoUpdater, type ProgressInfo, type UpdateInfo } from 'electron-updater';
 import Store from 'electron-store';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defaultSettings, type AppSettings, type ConnectionState, type UnreadPayload } from '../shared/settings.js';
+import {
+  defaultSettings,
+  type AppSettings,
+  type AppUpdateStatus,
+  type ConnectionState,
+  type UnreadPayload
+} from '../shared/settings.js';
 import { isAllowedWhatsAppUrl } from '../shared/allowedOrigins.js';
 import { desktopChromeUserAgent } from '../shared/browserProfile.js';
 
@@ -48,6 +56,13 @@ let unreadCount = 0;
 let lastNotifiedCount = 0;
 let lastConnectionState: ConnectionState = 'unknown';
 let defaultTrayIcon: NativeImage | null = null;
+let updateStatus: AppUpdateStatus = {
+  state: isDev ? 'disabled' : 'idle',
+  currentVersion: app.getVersion(),
+  message: isDev ? 'Atualizacoes automaticas ficam ativas apenas no app instalado.' : undefined
+};
+let checkingForUpdate = false;
+let updateReadyToInstall = false;
 const unreadIconCache = new Map<string, NativeImage>();
 
 function assetPath(...segments: string[]): string {
@@ -94,6 +109,18 @@ function saveSettings(settings: Partial<AppSettings>): AppSettings {
   store.set('settings', next);
   applySettings(next);
   mainWindow?.webContents.send('settings:changed', next);
+
+  if (settings.autoUpdate === true && !isDev) {
+    void checkForUpdates();
+  }
+
+  if (settings.autoUpdate === false) {
+    setUpdateStatus({
+      state: 'disabled',
+      message: 'Verificacao automatica desativada.'
+    });
+  }
+
   return next;
 }
 
@@ -189,6 +216,7 @@ function updateTrayMenu(): void {
     { label: 'Ocultar app', click: () => mainWindow?.hide() },
     { type: 'separator' },
     { label: 'Recarregar WhatsApp', click: reloadWhatsApp },
+    { label: 'Verificar atualizacoes', click: () => void checkForUpdates() },
     { label: 'Limpar cache/sessao', click: clearSession },
     {
       label: 'Sempre no topo',
@@ -239,6 +267,145 @@ async function clearSession(): Promise<void> {
 function quitApp(): void {
   isQuitting = true;
   app.quit();
+}
+
+function setUpdateStatus(status: Partial<AppUpdateStatus>): AppUpdateStatus {
+  updateStatus = {
+    ...updateStatus,
+    ...status,
+    currentVersion: app.getVersion()
+  };
+  mainWindow?.webContents.send('updates:changed', updateStatus);
+  return updateStatus;
+}
+
+function readableUpdateError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'Nao foi possivel verificar atualizacoes.';
+}
+
+async function promptInstallUpdate(version?: string): Promise<void> {
+  if (!mainWindow) return;
+
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    buttons: ['Reiniciar e instalar', 'Depois'],
+    defaultId: 0,
+    cancelId: 1,
+    title: 'Atualizacao pronta',
+    message: version ? `ZapDesk ${version} foi baixado.` : 'Uma atualizacao do ZapDesk foi baixada.',
+    detail: 'O aplicativo precisa reiniciar para concluir a instalacao.'
+  });
+
+  if (result.response === 0) {
+    installDownloadedUpdate();
+  }
+}
+
+function installDownloadedUpdate(): void {
+  if (!updateReadyToInstall) return;
+
+  isQuitting = true;
+  autoUpdater.quitAndInstall(false, true);
+}
+
+async function checkForUpdates(): Promise<AppUpdateStatus> {
+  if (isDev) {
+    return setUpdateStatus({
+      state: 'disabled',
+      message: 'Atualizacoes automaticas ficam ativas apenas no app instalado.'
+    });
+  }
+
+  if (checkingForUpdate) {
+    return updateStatus;
+  }
+
+  if (updateReadyToInstall) {
+    return updateStatus;
+  }
+
+  checkingForUpdate = true;
+  setUpdateStatus({
+    state: 'checking',
+    percent: undefined,
+    message: 'Verificando atualizacoes...'
+  });
+
+  try {
+    await autoUpdater.checkForUpdates();
+    return updateStatus;
+  } catch (error) {
+    checkingForUpdate = false;
+    return setUpdateStatus({
+      state: 'error',
+      message: readableUpdateError(error)
+    });
+  }
+}
+
+function configureAutoUpdater(): void {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.allowPrerelease = false;
+
+  autoUpdater.on('checking-for-update', () => {
+    setUpdateStatus({
+      state: 'checking',
+      percent: undefined,
+      message: 'Verificando atualizacoes...'
+    });
+  });
+
+  autoUpdater.on('update-available', (info: UpdateInfo) => {
+    setUpdateStatus({
+      state: 'available',
+      availableVersion: info.version,
+      percent: undefined,
+      message: `Atualizacao ${info.version} encontrada. Baixando...`
+    });
+  });
+
+  autoUpdater.on('update-not-available', (info: UpdateInfo) => {
+    checkingForUpdate = false;
+    setUpdateStatus({
+      state: 'not-available',
+      availableVersion: info.version,
+      percent: undefined,
+      message: 'Voce ja esta usando a versao mais recente.'
+    });
+  });
+
+  autoUpdater.on('download-progress', (progress: ProgressInfo) => {
+    setUpdateStatus({
+      state: 'downloading',
+      percent: Math.round(progress.percent),
+      message: `Baixando atualizacao... ${Math.round(progress.percent)}%`
+    });
+  });
+
+  autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+    checkingForUpdate = false;
+    updateReadyToInstall = true;
+    setUpdateStatus({
+      state: 'downloaded',
+      availableVersion: info.version,
+      percent: 100,
+      message: 'Atualizacao baixada. Reinicie para instalar.'
+    });
+    void promptInstallUpdate(info.version);
+  });
+
+  autoUpdater.on('error', (error: Error) => {
+    checkingForUpdate = false;
+    setUpdateStatus({
+      state: 'error',
+      message: readableUpdateError(error)
+    });
+  });
 }
 
 function registerShortcuts(): void {
@@ -395,6 +562,9 @@ function configureWebContentsSecurity(webContents: WebContents): void {
 function setupIpc(): void {
   ipcMain.handle('settings:get', () => getSettings());
   ipcMain.handle('settings:update', (_event, settings: Partial<AppSettings>) => saveSettings(settings));
+  ipcMain.handle('updates:get', () => updateStatus);
+  ipcMain.handle('updates:check', () => checkForUpdates());
+  ipcMain.handle('updates:install', () => installDownloadedUpdate());
   ipcMain.handle('whatsapp:reload', () => reloadWhatsApp());
   ipcMain.handle('whatsapp:clear-session', () => clearSession());
   ipcMain.handle('window:toggle', () => toggleWindow());
@@ -425,10 +595,17 @@ if (!singleInstanceLock) {
     app.setAppUserModelId('com.zapdesk.app');
     Menu.setApplicationMenu(null);
     configurePersistentSession();
+    configureAutoUpdater();
     setupIpc();
     createWindow();
     createTray();
     registerShortcuts();
+
+    if (getSettings().autoUpdate) {
+      setTimeout(() => {
+        void checkForUpdates();
+      }, 8000);
+    }
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
