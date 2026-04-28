@@ -15,7 +15,7 @@ import {
   type MenuItemConstructorOptions,
   type NativeImage
 } from 'electron';
-import { autoUpdater, type ProgressInfo, type UpdateInfo } from 'electron-updater';
+import electronUpdater, { type ProgressInfo, type UpdateInfo } from 'electron-updater';
 import Store from 'electron-store';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +33,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 const whatsappUrl = 'https://web.whatsapp.com/';
+const { autoUpdater } = electronUpdater;
 
 app.commandLine.appendSwitch('high-dpi-support', '1');
 app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar');
