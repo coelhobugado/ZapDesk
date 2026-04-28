@@ -1,6 +1,6 @@
 {
   "name": "zapdesk",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Cliente desktop alternativo e estavel para WhatsApp Web.",
   "author": "ZapDesk",
   "private": true,
@@ -17,24 +17,24 @@
     "clean": "rimraf dist release"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^5.1.1",
-    "electron-store": "^10.1.0",
-    "lucide-react": "^0.561.0",
-    "vite": "^7.3.0"
+    "electron-store": "^10.1.0"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "electron": "^39.2.7",
     "electron-builder": "^26.0.12",
     "electronmon": "^2.0.3",
+    "lucide-react": "^0.561.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "rimraf": "^6.1.2",
     "typescript": "^5.9.3",
+    "vite": "^7.3.0",
     "wait-on": "^9.0.3"
   },
   "build": {

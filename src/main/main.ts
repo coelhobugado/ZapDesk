@@ -48,6 +48,7 @@ let unreadCount = 0;
 let lastNotifiedCount = 0;
 let lastConnectionState: ConnectionState = 'unknown';
 let defaultTrayIcon: NativeImage | null = null;
+const unreadIconCache = new Map<string, NativeImage>();
 
 function assetPath(...segments: string[]): string {
   if (isDev) {
@@ -63,6 +64,13 @@ function iconPath(): string {
 
 function createUnreadIcon(count: number, size = 256): NativeImage {
   const label = count > 99 ? '99+' : String(count);
+  const cacheKey = `${label}:${size}`;
+  const cachedIcon = unreadIconCache.get(cacheKey);
+
+  if (cachedIcon) {
+    return cachedIcon;
+  }
+
   const fontSize = label.length > 2 ? 58 : label.length > 1 ? 72 : 88;
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 256 256">
@@ -72,7 +80,9 @@ function createUnreadIcon(count: number, size = 256): NativeImage {
       <text x="190" y="${label.length > 2 ? 82 : 90}" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="#FFFFFF">${label}</text>
     </svg>`;
 
-  return nativeImage.createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+  const icon = nativeImage.createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+  unreadIconCache.set(cacheKey, icon);
+  return icon;
 }
 
 function getSettings(): AppSettings {
