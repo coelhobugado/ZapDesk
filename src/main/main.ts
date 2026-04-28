@@ -10,6 +10,8 @@ import {
   nativeImage,
   session,
   WebContents,
+  type ContextMenuParams,
+  type MenuItemConstructorOptions,
   type NativeImage
 } from 'electron';
 import Store from 'electron-store';
@@ -26,6 +28,8 @@ const whatsappUrl = 'https://web.whatsapp.com/';
 
 app.commandLine.appendSwitch('high-dpi-support', '1');
 app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar');
+
+const singleInstanceLock = app.requestSingleInstanceLock();
 
 type StoreSchema = {
   settings: AppSettings;
@@ -287,6 +291,52 @@ function updateUnreadVisuals(count: number): void {
   mainWindow?.flashFrame(false);
 }
 
+function showEditingContextMenu(webContents: WebContents, params: ContextMenuParams): void {
+  const template: MenuItemConstructorOptions[] = [];
+  const hasSelection = params.selectionText.trim().length > 0;
+  const isEditable = params.isEditable;
+
+  if (isEditable) {
+    template.push(
+      { label: 'Desfazer', role: 'undo', enabled: params.editFlags.canUndo },
+      { label: 'Refazer', role: 'redo', enabled: params.editFlags.canRedo },
+      { type: 'separator' },
+      { label: 'Recortar', role: 'cut', enabled: params.editFlags.canCut },
+      { label: 'Copiar', role: 'copy', enabled: params.editFlags.canCopy || hasSelection },
+      // Mantemos habilitado para permitir colar texto ou imagem no campo do WhatsApp.
+      { label: 'Colar', role: 'paste', enabled: true },
+      { type: 'separator' },
+      { label: 'Selecionar tudo', role: 'selectAll', enabled: params.editFlags.canSelectAll }
+    );
+  } else {
+    if (hasSelection) {
+      template.push({ label: 'Copiar', role: 'copy', enabled: true });
+    }
+
+    if (params.hasImageContents) {
+      if (template.length > 0) template.push({ type: 'separator' });
+      template.push({
+        label: 'Copiar imagem',
+        click: () => webContents.copyImageAt(params.x, params.y)
+      });
+    }
+  }
+
+  if (params.linkURL && /^https?:\/\//i.test(params.linkURL)) {
+    if (template.length > 0) template.push({ type: 'separator' });
+    template.push({
+      label: 'Abrir link no navegador',
+      click: () => void shell.openExternal(params.linkURL)
+    });
+  }
+
+  if (template.length === 0) return;
+
+  Menu.buildFromTemplate(template).popup({
+    window: mainWindow ?? undefined
+  });
+}
+
 function setConnectionState(state: ConnectionState): void {
   if (state === lastConnectionState) return;
   lastConnectionState = state;
@@ -294,6 +344,10 @@ function setConnectionState(state: ConnectionState): void {
 }
 
 function configureWebContentsSecurity(webContents: WebContents): void {
+  webContents.on('context-menu', (_event, params) => {
+    showEditingContextMenu(webContents, params);
+  });
+
   webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedWhatsAppUrl(url)) {
       return { action: 'allow' };
@@ -350,20 +404,28 @@ function setupIpc(): void {
   });
 }
 
-app.whenReady().then(() => {
-  app.setAppUserModelId('com.zapdesk.app');
-  Menu.setApplicationMenu(null);
-  configurePersistentSession();
-  setupIpc();
-  createWindow();
-  createTray();
-  registerShortcuts();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    else showWindow();
+if (!singleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    showWindow();
   });
-});
+
+  app.whenReady().then(() => {
+    app.setAppUserModelId('com.zapdesk.app');
+    Menu.setApplicationMenu(null);
+    configurePersistentSession();
+    setupIpc();
+    createWindow();
+    createTray();
+    registerShortcuts();
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+      else showWindow();
+    });
+  });
+}
 
 app.on('before-quit', () => {
   isQuitting = true;

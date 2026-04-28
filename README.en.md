@@ -12,19 +12,19 @@ ZapDesk was created for people who use WhatsApp on desktop but deal with the off
 
 If you only want to install and use it, download the installer:
 
-[Download ZapDesk for Windows (.exe)](https://github.com/coelhobugado/ZapDesk/releases/download/v1.0.5/ZapDesk-1.0.5-Setup.exe)
+[Download ZapDesk for Windows (.exe)](https://github.com/coelhobugado/ZapDesk/releases/download/v1.0.6/ZapDesk-1.0.6-Setup.exe)
 
 Portable option, without installer:
 
-[Download portable version (.zip)](https://github.com/coelhobugado/ZapDesk/releases/download/v1.0.5/ZapDesk-1.0.5-Portable.zip)
+[Download portable version (.zip)](https://github.com/coelhobugado/ZapDesk/releases/download/v1.0.6/ZapDesk-1.0.6-Portable.zip)
 
 Full release page:
 
-[ZapDesk 1.0.5 on GitHub Releases](https://github.com/coelhobugado/ZapDesk/releases/tag/v1.0.5)
+[ZapDesk 1.0.6 on GitHub Releases](https://github.com/coelhobugado/ZapDesk/releases/tag/v1.0.6)
 
 ## How To Use
 
-1. Download `ZapDesk-1.0.5-Setup.exe`.
+1. Download `ZapDesk-1.0.6-Setup.exe`.
 2. Run the installer.
 3. Open ZapDesk.
 4. Scan the WhatsApp Web QR Code if requested.
@@ -98,7 +98,7 @@ npm run dist
 The installer is generated at:
 
 ```text
-release/ZapDesk-1.0.5-Setup.exe
+release/ZapDesk-1.0.6-Setup.exe
 ```
 
 ## Structure
