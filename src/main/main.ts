@@ -17,6 +17,7 @@ import {
 } from 'electron';
 import electronUpdater, { type ProgressInfo, type UpdateInfo } from 'electron-updater';
 import Store from 'electron-store';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -71,6 +72,7 @@ let checkingForUpdate = false;
 let updateReadyToInstall = false;
 const unreadIconCache = new Map<string, NativeImage>();
 const trayIconSize = process.platform === 'win32' ? 32 : 22;
+let lastShortcutIconLabel: string | null = null;
 
 function assetPath(...segments: string[]): string {
   if (isDev) {
@@ -194,6 +196,96 @@ function createUnreadIcon(count: number, size = 32): NativeImage {
   const icon = nativeImage.createFromBitmap(bitmap, { width: size, height: size });
   unreadIconCache.set(cacheKey, icon);
   return icon;
+}
+
+function createIcoBuffer(images: Array<{ size: number; png: Buffer }>): Buffer {
+  const headerSize = 6;
+  const entrySize = 16;
+  let offset = headerSize + images.length * entrySize;
+  const header = Buffer.alloc(offset);
+
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(images.length, 4);
+
+  images.forEach((image, index) => {
+    const entryOffset = headerSize + index * entrySize;
+    header[entryOffset] = image.size >= 256 ? 0 : image.size;
+    header[entryOffset + 1] = image.size >= 256 ? 0 : image.size;
+    header[entryOffset + 2] = 0;
+    header[entryOffset + 3] = 0;
+    header.writeUInt16LE(1, entryOffset + 4);
+    header.writeUInt16LE(32, entryOffset + 6);
+    header.writeUInt32LE(image.png.length, entryOffset + 8);
+    header.writeUInt32LE(offset, entryOffset + 12);
+    offset += image.png.length;
+  });
+
+  return Buffer.concat([header, ...images.map((image) => image.png)]);
+}
+
+function shortcutIconPathForCount(count: number): string {
+  const label = count > 99 ? '99plus' : String(count);
+  return path.join(app.getPath('userData'), 'shortcut-icons', `zapdesk-unread-${label}.ico`);
+}
+
+function ensureShortcutIcon(count: number): string {
+  const iconFile = shortcutIconPathForCount(count);
+  if (fs.existsSync(iconFile)) return iconFile;
+
+  fs.mkdirSync(path.dirname(iconFile), { recursive: true });
+  const sizes = [16, 24, 32, 48, 64, 128, 256];
+  const images = sizes.map((size) => ({
+    size,
+    png: createUnreadIcon(count, size).toPNG()
+  }));
+
+  fs.writeFileSync(iconFile, createIcoBuffer(images));
+  return iconFile;
+}
+
+function desktopShortcutPaths(): string[] {
+  if (process.platform !== 'win32') return [];
+
+  const paths = new Set<string>();
+  paths.add(path.join(app.getPath('desktop'), 'ZapDesk.lnk'));
+
+  if (process.env.PUBLIC) {
+    paths.add(path.join(process.env.PUBLIC, 'Desktop', 'ZapDesk.lnk'));
+  }
+
+  return [...paths];
+}
+
+function updateDesktopShortcutIcon(count: number): void {
+  if (process.platform !== 'win32') return;
+
+  const nextLabel = count > 0 ? (count > 99 ? '99plus' : String(count)) : 'default';
+  if (lastShortcutIconLabel === nextLabel) return;
+
+  const icon = count > 0 ? ensureShortcutIcon(count) : process.execPath;
+  let updated = false;
+
+  for (const shortcutPath of desktopShortcutPaths()) {
+    if (!fs.existsSync(shortcutPath)) continue;
+
+    try {
+      const details = shell.readShortcutLink(shortcutPath);
+      updated =
+        shell.writeShortcutLink(shortcutPath, 'update', {
+          ...details,
+          appUserModelId,
+          icon,
+          iconIndex: 0
+        }) || updated;
+    } catch {
+      // Shortcuts can be missing or protected depending on how the app was installed.
+    }
+  }
+
+  if (updated) {
+    lastShortcutIconLabel = nextLabel;
+  }
 }
 
 function getSettings(): AppSettings {
@@ -528,6 +620,7 @@ function updateUnreadCount(count: number, title = 'ZapDesk'): void {
   mainWindow?.setTitle(appTitle);
   tray?.setToolTip(count > 0 ? `ZapDesk - ${count} mensagens nao lidas` : 'ZapDesk');
   updateUnreadVisuals(count);
+  updateDesktopShortcutIcon(count);
 
   // Windows aceita badge em alguns ambientes; quando nao aceita, o titulo ainda exibe o contador.
   app.setBadgeCount(count);
@@ -720,6 +813,7 @@ if (!singleInstanceLock) {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  updateDesktopShortcutIcon(0);
 });
 
 app.on('will-quit', () => {
