@@ -24,6 +24,53 @@ const defaultUpdateStatus: AppUpdateStatus = {
   currentVersion: '0.0.0'
 };
 
+const externalLinkInterceptorScript = `
+  (() => {
+    if ((window).__zapdeskExternalLinkInterceptorInstalled) return;
+    (window).__zapdeskExternalLinkInterceptorInstalled = true;
+
+    const isWhatsAppUrl = (rawUrl) => {
+      try {
+        const url = new URL(rawUrl, window.location.href);
+        return url.protocol === 'https:' && url.hostname.toLowerCase() === 'web.whatsapp.com';
+      } catch {
+        return false;
+      }
+    };
+
+    const getCandidateUrl = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return null;
+
+      const anchor = target.closest('a[href]');
+      if (anchor instanceof HTMLAnchorElement) {
+        return anchor.getAttribute('href') ?? anchor.href ?? null;
+      }
+
+      const elementWithUrl = target.closest('[data-url],[data-href],[href]');
+      if (!elementWithUrl) return null;
+
+      return (
+        elementWithUrl.getAttribute('data-url') ||
+        elementWithUrl.getAttribute('data-href') ||
+        elementWithUrl.getAttribute('href')
+      );
+    };
+
+    const openExternal = (event) => {
+      const candidateUrl = getCandidateUrl(event);
+      if (!candidateUrl || isWhatsAppUrl(candidateUrl)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      window.open(candidateUrl, '_blank', 'noopener,noreferrer');
+    };
+
+    document.addEventListener('click', openExternal, true);
+    document.addEventListener('auxclick', openExternal, true);
+  })();
+`;
+
 export function App() {
   const webviewRef = useRef<WebviewTag | null>(null);
   const hasShownWhatsAppRef = useRef(false);
@@ -178,6 +225,7 @@ export function App() {
     };
     const handleReady = () => {
       void webviewElement.setZoomFactor(1);
+      void webviewElement.executeJavaScript(externalLinkInterceptorScript, false).catch(() => undefined);
     };
     const handleStop = () => {
       setConnection(navigator.onLine ? 'online' : 'offline');
