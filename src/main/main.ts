@@ -28,10 +28,10 @@ import {
 } from '../shared/settings.js';
 import {
   isAllowedWhatsAppMainFrameUrl,
+  normalizeExternalUrl,
   isSafeExternalUrl,
   whatsappPartition
 } from '../shared/allowedOrigins.js';
-import { desktopChromeUserAgent } from '../shared/browserProfile.js';
 import { cleanWhatsAppTitle, parseUnreadFromTitle } from '../shared/unread.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -73,7 +73,6 @@ let updateStatus: AppUpdateStatus = {
 };
 let checkingForUpdate = false;
 let updateReadyToInstall = false;
-const unreadIconCache = new Map<string, NativeImage>();
 const trayIconSize = process.platform === 'win32' ? 32 : 22;
 let pendingReload = false;
 
@@ -537,8 +536,9 @@ function updateUnreadVisuals(count: number): void {
 }
 
 function openSafeExternalUrl(rawUrl: string): void {
-  if (!isSafeExternalUrl(rawUrl)) return;
-  void shell.openExternal(rawUrl);
+  const normalizedUrl = normalizeExternalUrl(rawUrl);
+  if (!normalizedUrl) return;
+  void shell.openExternal(normalizedUrl);
 }
 
 function showEditingContextMenu(webContents: WebContents, params: ContextMenuParams): void {
@@ -572,7 +572,7 @@ function showEditingContextMenu(webContents: WebContents, params: ContextMenuPar
     }
   }
 
-  if (params.linkURL && /^https?:\/\//i.test(params.linkURL)) {
+  if (params.linkURL && isSafeExternalUrl(params.linkURL)) {
     if (template.length > 0) template.push({ type: 'separator' });
     template.push({
       label: 'Abrir link no navegador',
@@ -617,6 +617,13 @@ function configureWebContentsSecurity(webContents: WebContents): void {
     if (win && win !== mainWindow) {
       win.close();
     }
+  });
+
+  webContents.on('will-redirect', (event, url) => {
+    if (isAllowedWhatsAppMainFrameUrl(url)) return;
+
+    event.preventDefault();
+    openSafeExternalUrl(url);
   });
 
   webContents.on('page-title-updated', (_event, title) => {
