@@ -196,8 +196,11 @@ export function App() {
       reload();
     }
 
+    let probeAttempts = 0;
     const interactiveProbe = window.setInterval(() => {
-      if (hasShownWhatsAppRef.current) {
+      probeAttempts += 1;
+      
+      if (hasShownWhatsAppRef.current || probeAttempts > 20) {
         window.clearInterval(interactiveProbe);
         return;
       }
@@ -253,6 +256,13 @@ export function App() {
     document.documentElement.dataset.theme = settings.darkTheme ? 'dark' : 'light';
   }, [settings.darkTheme]);
 
+  useEffect(() => {
+    if (actionError) {
+      const timer = window.setTimeout(() => setActionError(null), 5000);
+      return () => window.clearTimeout(timer);
+    }
+  }, [actionError]);
+
   return (
     <div className={`app-shell ${themeClass}`}>
       <main className="content">
@@ -270,6 +280,7 @@ export function App() {
           partition={whatsappPartition}
           webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes,spellcheck=no"
           useragent={desktopChromeUserAgent}
+          allowpopups
         />
 
         <div className="quick-actions">
@@ -341,8 +352,9 @@ export function App() {
               <h1>ZapDesk</h1>
               <p>Conectando ao WhatsApp Web com sua sessao local.</p>
               {slowLoad && (
-                <button type="button" className="continue-button" onClick={finishLoading}>
-                  Continuar para o WhatsApp
+                <button type="button" className="continue-button" onClick={reload} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <RefreshCw size={18} />
+                  Recarregar WhatsApp
                 </button>
               )}
             </div>

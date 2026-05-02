@@ -95,135 +95,7 @@ function appIcon(size = 256): NativeImage {
   return image.resize({ width: size, height: size, quality: 'best' });
 }
 
-function setPixel(bitmap: Buffer, width: number, x: number, y: number, red: number, green: number, blue: number, alpha = 255): void {
-  if (x < 0 || y < 0 || x >= width) return;
-
-  const offset = (y * width + x) * 4;
-  if (offset < 0 || offset + 3 >= bitmap.length) return;
-
-  bitmap[offset] = blue;
-  bitmap[offset + 1] = green;
-  bitmap[offset + 2] = red;
-  bitmap[offset + 3] = alpha;
-}
-
-function fillCircle(
-  bitmap: Buffer,
-  width: number,
-  height: number,
-  centerX: number,
-  centerY: number,
-  radius: number,
-  color: [number, number, number, number]
-): void {
-  const radiusSquared = radius * radius;
-  const startX = Math.max(0, Math.floor(centerX - radius));
-  const endX = Math.min(width - 1, Math.ceil(centerX + radius));
-  const startY = Math.max(0, Math.floor(centerY - radius));
-  const endY = Math.min(height - 1, Math.ceil(centerY + radius));
-
-  for (let y = startY; y <= endY; y += 1) {
-    for (let x = startX; x <= endX; x += 1) {
-      const dx = x - centerX;
-      const dy = y - centerY;
-      if (dx * dx + dy * dy <= radiusSquared) {
-        setPixel(bitmap, width, x, y, color[0], color[1], color[2], color[3]);
-      }
-    }
-  }
-}
-
-const digitMasks: Record<string, string[]> = {
-  '0': ['111', '101', '101', '101', '111'],
-  '1': ['010', '110', '010', '010', '111'],
-  '2': ['111', '001', '111', '100', '111'],
-  '3': ['111', '001', '111', '001', '111'],
-  '4': ['101', '101', '111', '001', '001'],
-  '5': ['111', '100', '111', '001', '111'],
-  '6': ['111', '100', '111', '101', '111'],
-  '7': ['111', '001', '001', '001', '001'],
-  '8': ['111', '101', '111', '101', '111'],
-  '9': ['111', '101', '111', '001', '111'],
-  '+': ['000', '010', '111', '010', '000']
-};
-
-function drawBadgeText(bitmap: Buffer, width: number, text: string, centerX: number, centerY: number, scale: number): void {
-  const glyphWidth = 3 * scale;
-  const glyphHeight = 5 * scale;
-  const spacing = Math.max(1, Math.floor(scale / 2));
-  const totalWidth = text.length * glyphWidth + Math.max(0, text.length - 1) * spacing;
-  const startX = Math.round(centerX - totalWidth / 2);
-  const startY = Math.round(centerY - glyphHeight / 2);
-
-  [...text].forEach((char, charIndex) => {
-    const mask = digitMasks[char] ?? digitMasks['0'];
-    const glyphX = startX + charIndex * (glyphWidth + spacing);
-
-    mask.forEach((row, rowIndex) => {
-      [...row].forEach((pixel, colIndex) => {
-        if (pixel !== '1') return;
-
-        const blockX = glyphX + colIndex * scale;
-        const blockY = startY + rowIndex * scale;
-        for (let y = 0; y < scale; y += 1) {
-          for (let x = 0; x < scale; x += 1) {
-            setPixel(bitmap, width, blockX + x, blockY + y, 255, 255, 255, 255);
-          }
-        }
-      });
-    });
-  });
-}
-
-function createUnreadIcon(count: number, size = 32): NativeImage {
-  const label = count > 99 ? '99+' : String(count);
-  const cacheKey = `${label}:${size}`;
-  const cachedIcon = unreadIconCache.get(cacheKey);
-
-  if (cachedIcon) {
-    return cachedIcon;
-  }
-
-  const base = appIcon(size);
-  if (base.isEmpty()) return base;
-
-  const bitmap = Buffer.from(base.toBitmap());
-  const badgeRadius = Math.max(6, Math.round(size * 0.31));
-  const badgeCenterX = size - badgeRadius;
-  const badgeCenterY = badgeRadius;
-
-  fillCircle(bitmap, size, size, badgeCenterX, badgeCenterY, badgeRadius + 2, [16, 24, 23, 255]);
-  fillCircle(bitmap, size, size, badgeCenterX, badgeCenterY, badgeRadius, [225, 61, 61, 255]);
-  drawBadgeText(bitmap, size, label, badgeCenterX, badgeCenterY, label.length > 2 ? 1 : Math.max(1, Math.round(size / 14)));
-
-  const icon = nativeImage.createFromBitmap(bitmap, { width: size, height: size });
-  unreadIconCache.set(cacheKey, icon);
-  return icon;
-}
-
-function createOverlayIcon(count: number, size = 32): NativeImage {
-  const label = count > 99 ? '99+' : String(count);
-  const cacheKey = `overlay:${label}:${size}`;
-  const cachedIcon = unreadIconCache.get(cacheKey);
-
-  if (cachedIcon) {
-    return cachedIcon;
-  }
-
-  const bitmap = Buffer.alloc(size * size * 4, 0);
-
-  const badgeRadius = Math.max(8, Math.round(size * 0.45));
-  const badgeCenterX = Math.round(size / 2);
-  const badgeCenterY = Math.round(size / 2);
-
-  fillCircle(bitmap, size, size, badgeCenterX, badgeCenterY, badgeRadius + 1, [16, 24, 23, 255]);
-  fillCircle(bitmap, size, size, badgeCenterX, badgeCenterY, badgeRadius, [225, 61, 61, 255]);
-  drawBadgeText(bitmap, size, label, badgeCenterX, badgeCenterY, label.length > 2 ? 1 : 2);
-
-  const icon = nativeImage.createFromBitmap(bitmap, { width: size, height: size });
-  unreadIconCache.set(cacheKey, icon);
-  return icon;
-}
+// Funções de badge manual removidas para melhorar performance. Utilizamos app.setBadgeCount nativo.
 
 
 function getSettings(): AppSettings {
@@ -263,7 +135,11 @@ function applySettings(settings = getSettings()): void {
 
 function configurePersistentSession(): void {
   const whatsappSession = session.fromPartition(whatsappPartition);
-  whatsappSession.setUserAgent(desktopChromeUserAgent);
+  
+  // Obter um User Agent padrão do Electron e limpar referências ao próprio app/Electron
+  const baseUserAgent = session.defaultSession.getUserAgent();
+  const cleanUserAgent = baseUserAgent.replace(/ZapDesk\/[0-9.-]+ /, '').replace(/Electron\/[0-9.-]+ /, '');
+  whatsappSession.setUserAgent(cleanUserAgent);
 
   whatsappSession.setPermissionRequestHandler((webContents, permission, callback) => {
     const requestUrl = webContents.getURL();
@@ -304,11 +180,16 @@ function configurePersistentSession(): void {
     callback(false);
   });
 
-  whatsappSession.webRequest.onBeforeSendHeaders((details, callback) => {
-    details.requestHeaders['DNT'] = '1';
-    details.requestHeaders['User-Agent'] = desktopChromeUserAgent;
-    callback({ requestHeaders: details.requestHeaders });
+  // Escuta nativa para Downloads
+  whatsappSession.on('will-download', (_event, item) => {
+    // Definir que mostre um SaveDialog para o usuário e defina o nome base
+    item.setSaveDialogOptions({
+      title: 'Salvar Arquivo',
+      defaultPath: path.join(app.getPath('downloads'), item.getFilename()),
+    });
   });
+
+  // Removido o whatsappSession.webRequest.onBeforeSendHeaders para evitar gargalos na rede
 }
 
 function createWindow(): void {
@@ -317,7 +198,7 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    minWidth: 900,
+    minWidth: 600,
     minHeight: 650,
     title: 'ZapDesk',
     icon: iconPath(),
@@ -648,20 +529,11 @@ function maybeNotify(count: number): void {
 
 function updateUnreadVisuals(count: number): void {
   if (count > 0) {
-    const unreadIcon = createUnreadIcon(count, trayIconSize);
-    const overlayIcon = createOverlayIcon(count, 32);
-    tray?.setImage(unreadIcon);
-    mainWindow?.setOverlayIcon(overlayIcon, `${count} mensagens nao lidas`);
     mainWindow?.flashFrame(true);
-    return;
+  } else {
+    mainWindow?.setOverlayIcon(null, '');
+    mainWindow?.flashFrame(false);
   }
-
-  if (defaultTrayIcon) {
-    tray?.setImage(defaultTrayIcon);
-  }
-
-  mainWindow?.setOverlayIcon(null, '');
-  mainWindow?.flashFrame(false);
 }
 
 function openSafeExternalUrl(rawUrl: string): void {
