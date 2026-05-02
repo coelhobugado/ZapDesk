@@ -32,6 +32,8 @@ describe('allowed origins', () => {
     expect(isSafeExternalUrl('geo:0,0?q=-23.55052,-46.633308')).toBe(true);
     expect(isSafeExternalUrl('maps:-23.55052,-46.633308')).toBe(true);
     expect(isSafeExternalUrl('www.google.com/maps?q=-23.55052,-46.633308')).toBe(true);
+    expect(isSafeExternalUrl('-23.55052,-46.633308')).toBe(true);
+    expect(isSafeExternalUrl('Localizacao: https://maps.google.com/?q=-23.55052,-46.633308')).toBe(true);
     expect(isSafeExternalUrl('file:///C:/Windows/system.ini')).toBe(false);
     expect(isSafeExternalUrl('javascript:alert(1)')).toBe(false);
   });
@@ -49,5 +51,14 @@ describe('allowed origins', () => {
     expect(normalizeExternalUrl('www.google.com/maps?q=-23.55052,-46.633308')).toBe(
       'https://www.google.com/maps?q=-23.55052,-46.633308'
     );
+    expect(normalizeExternalUrl('-23.55052,-46.633308')).toBe(
+      'https://www.google.com/maps/search/?api=1&query=-23.55052%2C-46.633308'
+    );
+    expect(normalizeExternalUrl('Localizacao: https://maps.google.com/?q=-23.55052,-46.633308.')).toBe(
+      'https://maps.google.com/?q=-23.55052,-46.633308'
+    );
+    expect(
+      normalizeExternalUrl('https://maps.googleapis.com/maps/api/staticmap?center=-23.55052,-46.633308&zoom=16')
+    ).toBe('https://www.google.com/maps/search/?api=1&query=-23.55052%2C-46.633308');
   });
 });

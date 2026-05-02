@@ -84,6 +84,14 @@ function assetPath(...segments: string[]): string {
   return path.join(process.resourcesPath, ...segments);
 }
 
+function whatsappWebviewPreloadPath(): string {
+  return path.join(__dirname, '../preload/whatsapp.cjs');
+}
+
+function isBlankNavigationUrl(rawUrl: string): boolean {
+  return rawUrl === '' || rawUrl === 'about:blank';
+}
+
 function iconPath(): string {
   return assetPath('assets', 'zapdesk.png');
 }
@@ -538,7 +546,16 @@ function updateUnreadVisuals(count: number): void {
 function openSafeExternalUrl(rawUrl: string): void {
   const normalizedUrl = normalizeExternalUrl(rawUrl);
   if (!normalizedUrl) return;
-  void shell.openExternal(normalizedUrl);
+  void shell.openExternal(normalizedUrl).catch((error) => {
+    console.warn(`Nao foi possivel abrir URL externa: ${normalizedUrl}`, error);
+  });
+}
+
+function closeAuxiliaryWindow(webContents: WebContents): void {
+  const win = BrowserWindow.fromWebContents(webContents);
+  if (win && win !== mainWindow) {
+    win.close();
+  }
 }
 
 function showEditingContextMenu(webContents: WebContents, params: ContextMenuParams): void {
@@ -594,6 +611,21 @@ function setConnectionState(state: ConnectionState): void {
 }
 
 function configureWebContentsSecurity(webContents: WebContents): void {
+  webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    if (!isAllowedWhatsAppMainFrameUrl(params.src ?? '')) {
+      event.preventDefault();
+      return;
+    }
+
+    params.partition = whatsappPartition;
+    params.allowpopups = 'true';
+    webPreferences.preload = whatsappWebviewPreloadPath();
+    webPreferences.contextIsolation = true;
+    webPreferences.nodeIntegration = false;
+    webPreferences.sandbox = true;
+    webPreferences.spellcheck = false;
+  });
+
   webContents.on('context-menu', (_event, params) => {
     showEditingContextMenu(webContents, params);
   });
@@ -603,8 +635,39 @@ function configureWebContentsSecurity(webContents: WebContents): void {
       return { action: 'allow' };
     }
 
+    if (isBlankNavigationUrl(url) && isAllowedWhatsAppMainFrameUrl(webContents.getURL())) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          show: false,
+          focusable: false,
+          skipTaskbar: true,
+          webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true
+          }
+        }
+      };
+    }
+
     openSafeExternalUrl(url);
     return { action: 'deny' };
+  });
+
+  webContents.on('did-create-window', (childWindow, details) => {
+    if (!isBlankNavigationUrl(details.url) || !isAllowedWhatsAppMainFrameUrl(webContents.getURL())) return;
+
+    const timeout = setTimeout(() => {
+      if (childWindow.isDestroyed()) return;
+
+      const currentUrl = childWindow.webContents.getURL();
+      if (isBlankNavigationUrl(currentUrl) || !isAllowedWhatsAppMainFrameUrl(currentUrl)) {
+        childWindow.close();
+      }
+    }, 5000);
+
+    childWindow.once('closed', () => clearTimeout(timeout));
   });
 
   webContents.on('will-navigate', (event, url) => {
@@ -612,11 +675,7 @@ function configureWebContentsSecurity(webContents: WebContents): void {
 
     event.preventDefault();
     openSafeExternalUrl(url);
-
-    const win = BrowserWindow.fromWebContents(webContents);
-    if (win && win !== mainWindow) {
-      win.close();
-    }
+    closeAuxiliaryWindow(webContents);
   });
 
   webContents.on('will-redirect', (event, url) => {
@@ -624,6 +683,7 @@ function configureWebContentsSecurity(webContents: WebContents): void {
 
     event.preventDefault();
     openSafeExternalUrl(url);
+    closeAuxiliaryWindow(webContents);
   });
 
   webContents.on('page-title-updated', (_event, title) => {
@@ -680,6 +740,12 @@ function setupIpc(): void {
   ipcMain.handle('shell:open-external', (_event, url: string) => {
     openSafeExternalUrl(url);
     return undefined;
+  });
+  ipcMain.on('shell:open-external-from-webview', (event, url: unknown) => {
+    if (typeof url !== 'string') return;
+    if (!isAllowedWhatsAppMainFrameUrl(event.sender.getURL())) return;
+
+    openSafeExternalUrl(url);
   });
 
   app.on('web-contents-created', (_event, contents) => {

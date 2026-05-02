@@ -57,13 +57,33 @@ const externalLinkInterceptorScript = `
       );
     };
 
+    const originalWindowOpen = window.open.bind(window);
+    const sendExternalUrl = (url) => {
+      if (document.documentElement.getAttribute('data-zapdesk-link-bridge') === 'ready') {
+        window.postMessage({ type: 'zapdesk:open-external', url }, '*');
+        return null;
+      }
+
+      return originalWindowOpen(url, '_blank', 'noopener,noreferrer');
+    };
+
+    window.open = (url, target, features) => {
+      const candidateUrl = typeof url === 'string' ? url : url?.toString?.();
+      if (candidateUrl && candidateUrl !== 'about:blank' && !isWhatsAppUrl(candidateUrl)) {
+        sendExternalUrl(candidateUrl);
+        return null;
+      }
+
+      return originalWindowOpen(url, target, features);
+    };
+
     const openExternal = (event) => {
       const candidateUrl = getCandidateUrl(event);
       if (!candidateUrl || isWhatsAppUrl(candidateUrl)) return;
 
       event.preventDefault();
       event.stopPropagation();
-      window.open(candidateUrl, '_blank', 'noopener,noreferrer');
+      sendExternalUrl(candidateUrl);
     };
 
     document.addEventListener('click', openExternal, true);
