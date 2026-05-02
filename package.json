@@ -1,6 +1,6 @@
 {
   "name": "zapdesk",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "Cliente desktop alternativo e estavel para WhatsApp Web.",
   "author": "ZapDesk",
   "private": true,

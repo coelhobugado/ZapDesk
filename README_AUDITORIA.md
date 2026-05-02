@@ -26,7 +26,7 @@ Este documento registra falhas, riscos e melhorias encontradas no codigo atual d
 - Abertura externa centralizada e limitada a protocolos seguros explicitos.
 - Permissoes de notificacao, camera/microfone e captura de tela validadas por origem.
 - Confirmacao antes de limpar cache/sessao.
-- Sandbox ativado no BrowserWindow e no webview.
+- Sandbox ativado no webview. O BrowserWindow voltou para `sandbox: false` porque o preload atual e emitido como ESM e falha em modo sandbox no Electron empacotado.
 - Popups removidos do webview e `about:blank` deixou de ser permitido.
 - Canais de loading do preload passaram a ser enviados pelo main.
 - Loading deixou de sumir apenas porque `document.body` existe.
@@ -41,7 +41,7 @@ Este documento registra falhas, riscos e melhorias encontradas no codigo atual d
 ## Pendencias que ainda exigem validacao manual
 
 - Medir CPU/memoria com janela aberta, minimizada e no tray.
-- Confirmar em instalacao empacotada se `sandbox: true` e `webview` continuam funcionando em todos os cenarios do WhatsApp Web.
+- Para ativar sandbox no BrowserWindow, primeiro empacotar o preload como CommonJS/bundle separado e validar em instalacao empacotada.
 - Testar chamada de audio/video e compartilhamento de tela no WhatsApp Web real.
 - Testar update real via GitHub Releases com uma tag publicada.
 - Validar acessibilidade com leitor de tela, alem do foco/teclado basico implementado.

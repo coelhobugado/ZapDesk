@@ -327,7 +327,10 @@ function createWindow(): void {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      // The preload is emitted as ESM. Electron sandboxed preload expects a
+      // CommonJS-compatible script, so keep the shell unsandboxed until the
+      // preload is bundled separately.
+      sandbox: false,
       webviewTag: true,
       spellcheck: false
     }
