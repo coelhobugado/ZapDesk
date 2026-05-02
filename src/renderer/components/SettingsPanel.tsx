@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Bell, Download, Moon, Pin, RefreshCw, RotateCcw, Save, X } from 'lucide-react';
 import type { AppSettings, AppUpdateStatus } from '../../shared/settings';
 
@@ -22,16 +23,51 @@ export function SettingsPanel({
 }: Props) {
   const checking = updateStatus.state === 'checking' || updateStatus.state === 'downloading';
   const downloaded = updateStatus.state === 'downloaded';
+  const panelRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !panelRef.current) return;
+
+      const focusable = Array.from(
+        panelRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)')
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   return (
     <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="Configuracoes do ZapDesk">
-      <section className="settings-panel">
+      <section className="settings-panel" ref={panelRef}>
         <header>
           <div>
             <h2>Configuracoes</h2>
             <p>Preferencias locais do aplicativo.</p>
           </div>
-          <button type="button" title="Fechar" onClick={onClose}>
+          <button type="button" title="Fechar" ref={closeButtonRef} onClick={onClose}>
             <X size={18} />
           </button>
         </header>

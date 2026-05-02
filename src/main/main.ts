@@ -17,8 +17,6 @@ import {
 } from 'electron';
 import electronUpdater, { type ProgressInfo, type UpdateInfo } from 'electron-updater';
 import Store from 'electron-store';
-import { execFile } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -28,13 +26,17 @@ import {
   type ConnectionState,
   type UnreadPayload
 } from '../shared/settings.js';
-import { isAllowedWhatsAppUrl } from '../shared/allowedOrigins.js';
+import {
+  isAllowedWhatsAppMainFrameUrl,
+  isSafeExternalUrl,
+  whatsappPartition
+} from '../shared/allowedOrigins.js';
 import { desktopChromeUserAgent } from '../shared/browserProfile.js';
+import { cleanWhatsAppTitle, parseUnreadFromTitle } from '../shared/unread.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
-const whatsappUrl = 'https://web.whatsapp.com/';
 const appUserModelId = 'com.zapdesk.app';
 const { autoUpdater } = electronUpdater;
 
@@ -73,7 +75,7 @@ let checkingForUpdate = false;
 let updateReadyToInstall = false;
 const unreadIconCache = new Map<string, NativeImage>();
 const trayIconSize = process.platform === 'win32' ? 32 : 22;
-let lastShortcutIconLabel: string | null = null;
+let pendingReload = false;
 
 function assetPath(...segments: string[]): string {
   if (isDev) {
@@ -208,11 +210,7 @@ function createOverlayIcon(count: number, size = 32): NativeImage {
     return cachedIcon;
   }
 
-  const base = appIcon(size);
-  if (base.isEmpty()) return base;
-
-  const bitmap = Buffer.from(base.toBitmap());
-  bitmap.fill(0); // Make transparent
+  const bitmap = Buffer.alloc(size * size * 4, 0);
 
   const badgeRadius = Math.max(8, Math.round(size * 0.45));
   const badgeCenterX = Math.round(size / 2);
@@ -227,104 +225,6 @@ function createOverlayIcon(count: number, size = 32): NativeImage {
   return icon;
 }
 
-function createIcoBuffer(images: Array<{ size: number; png: Buffer }>): Buffer {
-  const headerSize = 6;
-  const entrySize = 16;
-  let offset = headerSize + images.length * entrySize;
-  const header = Buffer.alloc(offset);
-
-  header.writeUInt16LE(0, 0);
-  header.writeUInt16LE(1, 2);
-  header.writeUInt16LE(images.length, 4);
-
-  images.forEach((image, index) => {
-    const entryOffset = headerSize + index * entrySize;
-    header[entryOffset] = image.size >= 256 ? 0 : image.size;
-    header[entryOffset + 1] = image.size >= 256 ? 0 : image.size;
-    header[entryOffset + 2] = 0;
-    header[entryOffset + 3] = 0;
-    header.writeUInt16LE(1, entryOffset + 4);
-    header.writeUInt16LE(32, entryOffset + 6);
-    header.writeUInt32LE(image.png.length, entryOffset + 8);
-    header.writeUInt32LE(offset, entryOffset + 12);
-    offset += image.png.length;
-  });
-
-  return Buffer.concat([header, ...images.map((image) => image.png)]);
-}
-
-function shortcutIconPathForCount(count: number): string {
-  const label = count > 99 ? '99plus' : String(count);
-  return path.join(app.getPath('userData'), 'shortcut-icons', `zapdesk-unread-${label}.ico`);
-}
-
-function ensureShortcutIcon(count: number): string {
-  const iconFile = shortcutIconPathForCount(count);
-  if (fs.existsSync(iconFile)) return iconFile;
-
-  fs.mkdirSync(path.dirname(iconFile), { recursive: true });
-  const sizes = [16, 24, 32, 48, 64, 128, 256];
-  const images = sizes.map((size) => ({
-    size,
-    png: createUnreadIcon(count, size).toPNG()
-  }));
-
-  fs.writeFileSync(iconFile, createIcoBuffer(images));
-  return iconFile;
-}
-
-function windowsShortcutPaths(): string[] {
-  if (process.platform !== 'win32') return [];
-
-  const paths = new Set<string>();
-  paths.add(path.join(app.getPath('desktop'), 'ZapDesk.lnk'));
-  paths.add(path.join(app.getPath('appData'), 'Microsoft', 'Internet Explorer', 'Quick Launch', 'User Pinned', 'TaskBar', 'ZapDesk.lnk'));
-
-  if (process.env.PUBLIC) {
-    paths.add(path.join(process.env.PUBLIC, 'Desktop', 'ZapDesk.lnk'));
-  }
-
-  return [...paths];
-}
-
-function refreshWindowsIconCache(): void {
-  if (process.platform !== 'win32') return;
-
-  // Em Windows 10/11, atualizar o cache de icones da barra de tarefas e da area de trabalho
-  execFile('ie4uinit.exe', ['-show'], { windowsHide: true }, () => undefined);
-}
-
-function updateWindowsShortcutIcons(count: number): void {
-  if (process.platform !== 'win32') return;
-
-  const nextLabel = count > 0 ? (count > 99 ? '99plus' : String(count)) : 'default';
-  if (lastShortcutIconLabel === nextLabel) return;
-
-  const icon = count > 0 ? ensureShortcutIcon(count) : process.execPath;
-  let updated = false;
-
-  for (const shortcutPath of windowsShortcutPaths()) {
-    if (!fs.existsSync(shortcutPath)) continue;
-
-    try {
-      const details = shell.readShortcutLink(shortcutPath);
-      updated =
-        shell.writeShortcutLink(shortcutPath, 'update', {
-          ...details,
-          appUserModelId,
-          icon,
-          iconIndex: 0
-        }) || updated;
-    } catch {
-      // Shortcuts can be missing or protected depending on how the app was installed.
-    }
-  }
-
-  if (updated) {
-    lastShortcutIconLabel = nextLabel;
-    refreshWindowsIconCache();
-  }
-}
 
 function getSettings(): AppSettings {
   return { ...defaultSettings, ...store.get('settings') };
@@ -352,19 +252,56 @@ function saveSettings(settings: Partial<AppSettings>): AppSettings {
 
 function applySettings(settings = getSettings()): void {
   mainWindow?.setAlwaysOnTop(settings.alwaysOnTop);
-  app.setLoginItemSettings({
-    openAtLogin: settings.startWithWindows,
-    path: process.execPath
-  });
+  if (app.isPackaged) {
+    app.setLoginItemSettings({
+      openAtLogin: settings.startWithWindows,
+      path: process.execPath
+    });
+  }
   updateTrayMenu();
 }
 
 function configurePersistentSession(): void {
-  const whatsappSession = session.fromPartition('persist:zapdesk-whatsapp');
+  const whatsappSession = session.fromPartition(whatsappPartition);
   whatsappSession.setUserAgent(desktopChromeUserAgent);
 
-  whatsappSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    callback(['notifications', 'media', 'display-capture'].includes(permission));
+  whatsappSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    const requestUrl = webContents.getURL();
+    if (!isAllowedWhatsAppMainFrameUrl(requestUrl)) {
+      callback(false);
+      return;
+    }
+
+    if (permission === 'notifications') {
+      callback(true);
+      return;
+    }
+
+    if (permission === 'media' || permission === 'display-capture') {
+      if (!mainWindow) {
+        callback(false);
+        return;
+      }
+
+      void dialog
+        .showMessageBox(mainWindow, {
+          type: 'question',
+          buttons: ['Permitir', 'Bloquear'],
+          defaultId: 1,
+          cancelId: 1,
+          title: 'Permissao do WhatsApp Web',
+          message:
+            permission === 'media'
+              ? 'Permitir que o WhatsApp Web use camera ou microfone?'
+              : 'Permitir que o WhatsApp Web capture sua tela?',
+          detail: 'A permissao sera concedida apenas para web.whatsapp.com nesta solicitacao.'
+        })
+        .then((result) => callback(result.response === 0))
+        .catch(() => callback(false));
+      return;
+    }
+
+    callback(false);
   });
 
   whatsappSession.webRequest.onBeforeSendHeaders((details, callback) => {
@@ -390,9 +327,8 @@ function createWindow(): void {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       webviewTag: true,
-      backgroundThrottling: false,
       spellcheck: false
     }
   });
@@ -483,11 +419,26 @@ function toggleWindow(): void {
 }
 
 function reloadWhatsApp(): void {
+  pendingReload = true;
   mainWindow?.webContents.send('whatsapp:command', 'reload');
 }
 
 async function clearSession(): Promise<void> {
-  const whatsappSession = session.fromPartition('persist:zapdesk-whatsapp');
+  if (mainWindow) {
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      buttons: ['Limpar cache e sessao', 'Cancelar'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Limpar cache e sessao',
+      message: 'Isso remove a sessao local do WhatsApp Web neste computador.',
+      detail: 'Na proxima abertura, talvez seja necessario escanear o QR Code novamente.'
+    });
+
+    if (result.response !== 0) return;
+  }
+
+  const whatsappSession = session.fromPartition(whatsappPartition);
   await whatsappSession.clearStorageData();
   await whatsappSession.clearCache();
   unreadCount = 0;
@@ -502,10 +453,13 @@ function quitApp(): void {
 }
 
 function setUpdateStatus(status: Partial<AppUpdateStatus>): AppUpdateStatus {
+  const state = status.state ?? updateStatus.state;
   updateStatus = {
-    ...updateStatus,
-    ...status,
-    currentVersion: app.getVersion()
+    state,
+    currentVersion: app.getVersion(),
+    ...(status.availableVersion ? { availableVersion: status.availableVersion } : {}),
+    ...(typeof status.percent === 'number' ? { percent: status.percent } : {}),
+    ...(status.message ? { message: status.message } : {})
   };
   mainWindow?.webContents.send('updates:changed', updateStatus);
   return updateStatus;
@@ -641,24 +595,26 @@ function configureAutoUpdater(): void {
 }
 
 function registerShortcuts(): void {
-  globalShortcut.register('CommandOrControl+Shift+W', toggleWindow);
-  globalShortcut.register('CommandOrControl+R', reloadWhatsApp);
-  globalShortcut.register('CommandOrControl+Shift+Q', quitApp);
-}
+  const shortcuts: Array<[string, () => void]> = [
+    ['CommandOrControl+Shift+W', toggleWindow],
+    ['CommandOrControl+R', reloadWhatsApp],
+    ['CommandOrControl+Shift+Q', quitApp]
+  ];
 
-function parseUnreadFromTitle(title: string): number {
-  const match = title.match(/^\((\d+)\)/);
-  return match ? Number(match[1]) : 0;
+  for (const [accelerator, handler] of shortcuts) {
+    if (!globalShortcut.register(accelerator, handler)) {
+      console.warn(`Nao foi possivel registrar o atalho global: ${accelerator}`);
+    }
+  }
 }
 
 function updateUnreadCount(count: number, title = 'ZapDesk'): void {
   unreadCount = count;
-  const cleanTitle = title.replace(/^\(\d+\)\s*/, '').trim() || 'WhatsApp';
+  const cleanTitle = cleanWhatsAppTitle(title);
   const appTitle = count > 0 ? `(${count}) ZapDesk - ${cleanTitle}` : `ZapDesk - ${cleanTitle}`;
   mainWindow?.setTitle(appTitle);
   tray?.setToolTip(count > 0 ? `ZapDesk - ${count} mensagens nao lidas` : 'ZapDesk');
   updateUnreadVisuals(count);
-  updateWindowsShortcutIcons(count);
 
   // Windows aceita badge em alguns ambientes; quando nao aceita, o titulo ainda exibe o contador.
   app.setBadgeCount(count);
@@ -674,12 +630,14 @@ function maybeNotify(count: number): void {
   lastNotifiedCount = count;
 
   if (Notification.isSupported()) {
-    new Notification({
+    const notification = new Notification({
       title: 'ZapDesk',
       body: count === 1 ? 'Voce tem uma nova mensagem no WhatsApp.' : `Voce tem ${count} mensagens nao lidas no WhatsApp.`,
       icon: iconPath(),
       silent: false
-    }).show();
+    });
+    notification.on('click', showWindow);
+    notification.show();
   }
 
   mainWindow?.flashFrame(true);
@@ -701,6 +659,11 @@ function updateUnreadVisuals(count: number): void {
 
   mainWindow?.setOverlayIcon(null, '');
   mainWindow?.flashFrame(false);
+}
+
+function openSafeExternalUrl(rawUrl: string): void {
+  if (!isSafeExternalUrl(rawUrl)) return;
+  void shell.openExternal(rawUrl);
 }
 
 function showEditingContextMenu(webContents: WebContents, params: ContextMenuParams): void {
@@ -738,7 +701,7 @@ function showEditingContextMenu(webContents: WebContents, params: ContextMenuPar
     if (template.length > 0) template.push({ type: 'separator' });
     template.push({
       label: 'Abrir link no navegador',
-      click: () => void shell.openExternal(params.linkURL)
+      click: () => openSafeExternalUrl(params.linkURL)
     });
   }
 
@@ -761,22 +724,29 @@ function configureWebContentsSecurity(webContents: WebContents): void {
   });
 
   webContents.setWindowOpenHandler(({ url }) => {
-    if (isAllowedWhatsAppUrl(url)) {
+    if (isAllowedWhatsAppMainFrameUrl(url)) {
       return { action: 'allow' };
     }
 
-    void shell.openExternal(url);
+    openSafeExternalUrl(url);
     return { action: 'deny' };
   });
 
   webContents.on('will-navigate', (event, url) => {
-    if (isAllowedWhatsAppUrl(url)) return;
+    if (isAllowedWhatsAppMainFrameUrl(url)) return;
 
     event.preventDefault();
-    void shell.openExternal(url);
+    openSafeExternalUrl(url);
+
+    const win = BrowserWindow.fromWebContents(webContents);
+    if (win && win !== mainWindow) {
+      win.close();
+    }
   });
 
   webContents.on('page-title-updated', (_event, title) => {
+    if (!isAllowedWhatsAppMainFrameUrl(webContents.getURL())) return;
+
     const nextUnread = parseUnreadFromTitle(title);
     updateUnreadCount(nextUnread, title);
     maybeNotify(nextUnread);
@@ -788,8 +758,26 @@ function configureWebContentsSecurity(webContents: WebContents): void {
   webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     if (!isMainFrame) return;
 
-    if (validatedURL === whatsappUrl || validatedURL.includes('web.whatsapp.com')) {
+    if (isAllowedWhatsAppMainFrameUrl(validatedURL)) {
       mainWindow?.webContents.send('load:failed', `${errorDescription} (${errorCode})`);
+    }
+  });
+
+  webContents.on('did-start-loading', () => {
+    if (webContents === mainWindow?.webContents) return;
+    mainWindow?.webContents.send('load:started');
+  });
+
+  webContents.on('did-finish-load', () => {
+    if (webContents === mainWindow?.webContents) return;
+    if (!isAllowedWhatsAppMainFrameUrl(webContents.getURL())) return;
+
+    mainWindow?.webContents.send('load:finished');
+    setConnectionState('online');
+
+    if (pendingReload) {
+      pendingReload = false;
+      webContents.reloadIgnoringCache();
     }
   });
 }
@@ -801,20 +789,21 @@ function setupIpc(): void {
   ipcMain.handle('updates:check', () => checkForUpdates());
   ipcMain.handle('updates:install', () => installDownloadedUpdate());
   ipcMain.handle('whatsapp:reload', () => reloadWhatsApp());
+  ipcMain.handle('whatsapp:reload-handled', () => {
+    pendingReload = false;
+  });
   ipcMain.handle('whatsapp:clear-session', () => clearSession());
   ipcMain.handle('window:toggle', () => toggleWindow());
   ipcMain.handle('app:quit', () => quitApp());
   ipcMain.handle('shell:open-external', (_event, url: string) => {
-    if (url.startsWith('https://') || url.startsWith('http://')) {
-      return shell.openExternal(url);
-    }
+    openSafeExternalUrl(url);
     return undefined;
   });
 
   app.on('web-contents-created', (_event, contents) => {
     configureWebContentsSecurity(contents);
     contents.on('did-navigate-in-page', (_navEvent, url) => {
-      if (url.includes('web.whatsapp.com')) setConnectionState('online');
+      if (isAllowedWhatsAppMainFrameUrl(url)) setConnectionState('online');
     });
   });
 }
@@ -851,7 +840,6 @@ if (!singleInstanceLock) {
 
 app.on('before-quit', () => {
   isQuitting = true;
-  updateWindowsShortcutIcons(0);
 });
 
 app.on('will-quit', () => {

@@ -1,4 +1,9 @@
-const allowedHostnames = new Set([
+export const whatsappHomeUrl = 'https://web.whatsapp.com/';
+export const whatsappPartition = 'persist:zapdesk-whatsapp';
+
+const whatsappMainHostname = 'web.whatsapp.com';
+
+const allowedResourceHostnames = new Set([
   'web.whatsapp.com',
   'whatsapp.com',
   'www.whatsapp.com',
@@ -14,22 +19,41 @@ const allowedHostnames = new Set([
   'fbcdn.net'
 ]);
 
-const allowedSuffixes = ['.whatsapp.net', '.whatsapp.com', '.facebook.com', '.fbcdn.net'];
+const allowedResourceSuffixes = ['.whatsapp.net', '.whatsapp.com', '.facebook.com', '.fbcdn.net'];
+const safeExternalProtocols = new Set(['https:', 'http:', 'mailto:', 'tel:']);
 
-export function isAllowedWhatsAppUrl(rawUrl: string): boolean {
+export function parseUrl(rawUrl: string): URL | null {
   try {
-    const url = new URL(rawUrl);
-    if (!['https:', 'wss:', 'blob:', 'data:'].includes(url.protocol)) {
-      return false;
-    }
-
-    if (url.protocol === 'blob:' || url.protocol === 'data:') {
-      return true;
-    }
-
-    const host = url.hostname.toLowerCase();
-    return allowedHostnames.has(host) || allowedSuffixes.some((suffix) => host.endsWith(suffix));
+    return new URL(rawUrl);
   } catch {
+    return null;
+  }
+}
+
+export function isAllowedWhatsAppMainFrameUrl(rawUrl: string): boolean {
+  const url = parseUrl(rawUrl);
+  if (!url) return false;
+
+  return url.protocol === 'https:' && url.hostname.toLowerCase() === whatsappMainHostname;
+}
+
+export function isAllowedWhatsAppResourceUrl(rawUrl: string): boolean {
+  const url = parseUrl(rawUrl);
+  if (!url) return false;
+
+  if (url.protocol === 'blob:') {
+    return url.origin === whatsappHomeUrl.slice(0, -1);
+  }
+
+  if (!['https:', 'wss:'].includes(url.protocol)) {
     return false;
   }
+
+  const host = url.hostname.toLowerCase();
+  return allowedResourceHostnames.has(host) || allowedResourceSuffixes.some((suffix) => host.endsWith(suffix));
+}
+
+export function isSafeExternalUrl(rawUrl: string): boolean {
+  const url = parseUrl(rawUrl);
+  return Boolean(url && safeExternalProtocols.has(url.protocol));
 }

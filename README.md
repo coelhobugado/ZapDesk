@@ -10,21 +10,17 @@ O ZapDesk foi criado para quem usa WhatsApp no computador, mas sofre com o aplic
 
 ## Baixar
 
-Para apenas instalar e usar, baixe o instalador:
+Para apenas instalar e usar, baixe o instalador mais recente:
 
-[Baixar ZapDesk para Windows (.exe)](https://github.com/coelhobugado/ZapDesk/releases/download/v1.0.6/ZapDesk-1.0.6-Setup.exe)
+[Baixar ZapDesk para Windows](https://github.com/coelhobugado/ZapDesk/releases/latest)
 
-Opcao portavel, sem instalador:
+Pagina completa de releases:
 
-[Baixar versao portable (.zip)](https://github.com/coelhobugado/ZapDesk/releases/download/v1.0.6/ZapDesk-1.0.6-Portable.zip)
-
-Pagina completa da release:
-
-[ZapDesk 1.0.6 no GitHub Releases](https://github.com/coelhobugado/ZapDesk/releases/tag/v1.0.6)
+[ZapDesk no GitHub Releases](https://github.com/coelhobugado/ZapDesk/releases)
 
 ## Como Usar
 
-1. Baixe o arquivo `ZapDesk-1.0.6-Setup.exe`.
+1. Baixe o instalador mais recente na pagina de releases.
 2. Execute o instalador.
 3. Abra o ZapDesk.
 4. Escaneie o QR Code do WhatsApp Web, se solicitado.
@@ -74,7 +70,7 @@ Requisitos:
 Instale as dependencias:
 
 ```bash
-npm install
+npm ci
 ```
 
 Rode em desenvolvimento:
@@ -89,6 +85,13 @@ Gere o build local:
 npm run build
 ```
 
+Rode validacoes:
+
+```bash
+npm run lint
+npm test
+```
+
 Gere o instalador:
 
 ```bash
@@ -98,7 +101,7 @@ npm run dist
 O instalador e gerado em:
 
 ```text
-release/ZapDesk-1.0.6-Setup.exe
+release/ZapDesk-<version>-Setup.exe
 ```
 
 ## Estrutura
@@ -122,7 +125,7 @@ A sessao local do WhatsApp fica nos dados do usuario e nao e removida em atualiz
 
 O ZapDesk nao possui servidor proprio e nao envia mensagens, contatos ou sessoes para terceiros. A autenticacao e o uso continuam acontecendo pelo WhatsApp Web.
 
-O app usa `contextIsolation: true`, `nodeIntegration: false` e preload controlado para nao expor APIs perigosas ao renderer.
+O app usa `contextIsolation: true`, `nodeIntegration: false`, sandbox, preload controlado e validacao de URLs externas para nao expor APIs perigosas ao renderer.
 
 Dados locais, cache e sessao ficam fora do repositorio e sao ignorados pelo Git.
 

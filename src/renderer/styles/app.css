@@ -563,6 +563,22 @@ button {
   background: var(--danger);
 }
 
+.status-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 20;
+  max-width: min(360px, calc(100% - 36px));
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 42%, transparent);
+  border-radius: 8px;
+  color: white;
+  background: color-mix(in srgb, var(--danger) 82%, #111);
+  box-shadow: 0 18px 48px var(--shadow);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 @media (max-width: 760px) {
   .quick-actions {
     top: 10px;

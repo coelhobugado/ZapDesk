@@ -7,6 +7,7 @@ declare global {
       getSettings: () => Promise<AppSettings>;
       updateSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>;
       reloadWhatsApp: () => Promise<void>;
+      markReloadHandled: () => Promise<void>;
       clearSession: () => Promise<void>;
       getUpdateStatus: () => Promise<AppUpdateStatus>;
       checkForUpdates: () => Promise<AppUpdateStatus>;
@@ -31,7 +32,6 @@ declare global {
         src?: string;
         partition?: string;
         webpreferences?: string;
-        allowpopups?: boolean;
         useragent?: string;
       };
     }

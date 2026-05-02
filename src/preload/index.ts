@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('zapdesk', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   updateSettings: (settings: Partial<AppSettings>) => ipcRenderer.invoke('settings:update', settings),
   reloadWhatsApp: () => ipcRenderer.invoke('whatsapp:reload'),
+  markReloadHandled: () => ipcRenderer.invoke('whatsapp:reload-handled'),
   clearSession: () => ipcRenderer.invoke('whatsapp:clear-session'),
   getUpdateStatus: () => ipcRenderer.invoke('updates:get'),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),

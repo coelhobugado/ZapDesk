@@ -16,9 +16,9 @@ import {
 import type { AppSettings, ConnectionState } from '../shared/settings';
 import { defaultSettings, type AppUpdateStatus } from '../shared/settings';
 import { desktopChromeUserAgent } from '../shared/browserProfile';
+import { whatsappHomeUrl, whatsappPartition } from '../shared/allowedOrigins';
 import { SettingsPanel } from './components/SettingsPanel';
 
-const whatsappUrl = 'https://web.whatsapp.com/';
 const defaultUpdateStatus: AppUpdateStatus = {
   state: 'idle',
   currentVersion: '0.0.0'
@@ -28,6 +28,7 @@ export function App() {
   const webviewRef = useRef<WebviewTag | null>(null);
   const hasShownWhatsAppRef = useRef(false);
   const explicitReloadRef = useRef(false);
+  const pendingWebviewReloadRef = useRef(false);
   const loadingWatchdogRef = useRef<number | null>(null);
   const [webviewElement, setWebviewElement] = useState<WebviewTag | null>(null);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
@@ -39,6 +40,7 @@ export function App() {
   const [connection, setConnection] = useState<ConnectionState>(navigator.onLine ? 'online' : 'offline');
   const [unread, setUnread] = useState(0);
   const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus>(defaultUpdateStatus);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const themeClass = settings.darkTheme ? 'theme-dark' : 'theme-light';
 
@@ -74,17 +76,33 @@ export function App() {
   const reload = useCallback(() => {
     explicitReloadRef.current = true;
     startLoading(true);
-    webviewRef.current?.reloadIgnoringCache();
+    if (webviewRef.current) {
+      webviewRef.current.reloadIgnoringCache();
+      void window.zapdesk.markReloadHandled();
+      return;
+    }
+
+    pendingWebviewReloadRef.current = true;
   }, [startLoading]);
 
   const updateSettings = useCallback(async (next: Partial<AppSettings>) => {
-    const updated = await window.zapdesk.updateSettings(next);
-    setSettings(updated);
+    try {
+      const updated = await window.zapdesk.updateSettings(next);
+      setSettings(updated);
+      setActionError(null);
+    } catch {
+      setActionError('Nao foi possivel salvar as configuracoes.');
+    }
   }, []);
 
   const checkForUpdates = useCallback(async () => {
-    const status = await window.zapdesk.checkForUpdates();
-    setUpdateStatus(status);
+    try {
+      const status = await window.zapdesk.checkForUpdates();
+      setUpdateStatus(status);
+      setActionError(null);
+    } catch {
+      setActionError('Nao foi possivel verificar atualizacoes.');
+    }
   }, []);
 
   const setWebviewRef = useCallback((node: HTMLElement | null) => {
@@ -94,8 +112,11 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    void window.zapdesk.getSettings().then(setSettings);
-    void window.zapdesk.getUpdateStatus().then(setUpdateStatus);
+    void window.zapdesk.getSettings().then(setSettings).catch(() => setActionError('Nao foi possivel carregar configuracoes.'));
+    void window.zapdesk
+      .getUpdateStatus()
+      .then(setUpdateStatus)
+      .catch(() => setActionError('Nao foi possivel carregar o status de atualizacao.'));
     const unsubSettings = window.zapdesk.onSettingsChanged(setSettings);
     const unsubUpdates = window.zapdesk.onUpdateChanged(setUpdateStatus);
     const unsubUnread = window.zapdesk.onUnreadChanged((payload) => setUnread(payload.unreadCount));
@@ -120,8 +141,18 @@ export function App() {
 
     const online = () => setConnection('online');
     const offline = () => setConnection('offline');
+    const closeQuickMenu = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      if (!target?.closest('.quick-actions')) setQuickMenuOpen(false);
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setQuickMenuOpen(false);
+    };
+
     window.addEventListener('online', online);
     window.addEventListener('offline', offline);
+    document.addEventListener('mousedown', closeQuickMenu);
+    document.addEventListener('keydown', handleEscape);
 
     return () => {
       unsubSettings();
@@ -134,6 +165,8 @@ export function App() {
       unsubCommand();
       window.removeEventListener('online', online);
       window.removeEventListener('offline', offline);
+      document.removeEventListener('mousedown', closeQuickMenu);
+      document.removeEventListener('keydown', handleEscape);
     };
   }, [finishLoading, reload, startLoading]);
 
@@ -144,16 +177,12 @@ export function App() {
       startLoading(explicitReloadRef.current);
     };
     const handleReady = () => {
-      finishLoading();
-      setConnection('online');
       void webviewElement.setZoomFactor(1);
     };
     const handleStop = () => {
-      finishLoading();
       setConnection(navigator.onLine ? 'online' : 'offline');
     };
     const handleFinish = () => {
-      finishLoading();
       setConnection('online');
     };
     const handleFail = (event: Electron.DidFailLoadEvent) => {
@@ -162,11 +191,10 @@ export function App() {
         setLoading(false);
       }
     };
-    const fallback = window.setTimeout(() => {
-      if (webviewElement.getURL().startsWith(whatsappUrl)) {
-        finishLoading();
-      }
-    }, 8000);
+    if (pendingWebviewReloadRef.current) {
+      pendingWebviewReloadRef.current = false;
+      reload();
+    }
 
     const interactiveProbe = window.setInterval(() => {
       if (hasShownWhatsAppRef.current) {
@@ -176,7 +204,17 @@ export function App() {
 
       void webviewElement
         .executeJavaScript(
-          'Boolean(document.body && (document.readyState === "interactive" || document.readyState === "complete"))',
+          `Boolean(
+            location.origin === 'https://web.whatsapp.com' &&
+            document.querySelector('#app') &&
+            (
+              document.querySelector('[data-testid="chat-list"]') ||
+              document.querySelector('[aria-label="Chat list"]') ||
+              document.querySelector('[aria-label="Lista de conversas"]') ||
+              document.querySelector('canvas') ||
+              document.body?.innerText?.includes('WhatsApp')
+            )
+          )`,
           false
         )
         .then((ready) => {
@@ -192,7 +230,6 @@ export function App() {
     webviewElement.addEventListener('did-fail-load', handleFail);
 
     return () => {
-      window.clearTimeout(fallback);
       window.clearInterval(interactiveProbe);
       webviewElement.removeEventListener('did-start-loading', handleStart);
       webviewElement.removeEventListener('dom-ready', handleReady);
@@ -200,7 +237,7 @@ export function App() {
       webviewElement.removeEventListener('did-finish-load', handleFinish);
       webviewElement.removeEventListener('did-fail-load', handleFail);
     };
-  }, [finishLoading, startLoading, webviewElement]);
+  }, [finishLoading, reload, startLoading, webviewElement]);
 
   useEffect(() => {
     startLoading(true);
@@ -229,11 +266,10 @@ export function App() {
         <webview
           ref={setWebviewRef}
           className="whatsapp-view"
-          src={whatsappUrl}
-          partition="persist:zapdesk-whatsapp"
-          webpreferences="contextIsolation=yes,nodeIntegration=no,nativeWindowOpen=no,backgroundThrottling=no,spellcheck=no"
+          src={whatsappHomeUrl}
+          partition={whatsappPartition}
+          webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes,spellcheck=no"
           useragent={desktopChromeUserAgent}
-          allowpopups
         />
 
         <div className="quick-actions">
@@ -324,7 +360,11 @@ export function App() {
                   <RefreshCw size={18} />
                   Recarregar
                 </button>
-                <button type="button" className="secondary" onClick={() => void window.zapdesk.openExternal(whatsappUrl)}>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => void window.zapdesk.openExternal(whatsappHomeUrl)}
+                >
                   <ExternalLink size={18} />
                   Abrir no navegador
                 </button>
@@ -334,12 +374,20 @@ export function App() {
         )}
       </main>
 
+      {actionError && (
+        <div className="status-toast" role="status">
+          {actionError}
+        </div>
+      )}
+
       {settingsOpen && (
         <SettingsPanel
           settings={settings}
           onClose={() => setSettingsOpen(false)}
           onChange={(next) => void updateSettings(next)}
-          onClearSession={() => void window.zapdesk.clearSession()}
+          onClearSession={() =>
+            void window.zapdesk.clearSession().catch(() => setActionError('Nao foi possivel limpar a sessao.'))
+          }
           updateStatus={updateStatus}
           onCheckUpdates={() => void checkForUpdates()}
           onInstallUpdate={() => void window.zapdesk.installUpdate()}

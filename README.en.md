@@ -10,21 +10,17 @@ ZapDesk was created for people who use WhatsApp on desktop but deal with the off
 
 ## Download
 
-If you only want to install and use it, download the installer:
+If you only want to install and use it, download the latest installer:
 
-[Download ZapDesk for Windows (.exe)](https://github.com/coelhobugado/ZapDesk/releases/download/v1.0.6/ZapDesk-1.0.6-Setup.exe)
+[Download ZapDesk for Windows](https://github.com/coelhobugado/ZapDesk/releases/latest)
 
-Portable option, without installer:
+Full releases page:
 
-[Download portable version (.zip)](https://github.com/coelhobugado/ZapDesk/releases/download/v1.0.6/ZapDesk-1.0.6-Portable.zip)
-
-Full release page:
-
-[ZapDesk 1.0.6 on GitHub Releases](https://github.com/coelhobugado/ZapDesk/releases/tag/v1.0.6)
+[ZapDesk on GitHub Releases](https://github.com/coelhobugado/ZapDesk/releases)
 
 ## How To Use
 
-1. Download `ZapDesk-1.0.6-Setup.exe`.
+1. Download the latest installer from the releases page.
 2. Run the installer.
 3. Open ZapDesk.
 4. Scan the WhatsApp Web QR Code if requested.
@@ -74,7 +70,7 @@ Requirements:
 Install dependencies:
 
 ```bash
-npm install
+npm ci
 ```
 
 Run in development mode:
@@ -89,6 +85,13 @@ Create a local build:
 npm run build
 ```
 
+Run validations:
+
+```bash
+npm run lint
+npm test
+```
+
 Create the installer:
 
 ```bash
@@ -98,7 +101,7 @@ npm run dist
 The installer is generated at:
 
 ```text
-release/ZapDesk-1.0.6-Setup.exe
+release/ZapDesk-<version>-Setup.exe
 ```
 
 ## Structure
@@ -122,7 +125,7 @@ The local WhatsApp session is stored in the user's app data and is not removed d
 
 ZapDesk has no backend server and does not send messages, contacts, or sessions to third parties. Authentication and usage continue to happen through WhatsApp Web.
 
-The app uses `contextIsolation: true`, `nodeIntegration: false`, and a controlled preload so dangerous APIs are not exposed to the renderer.
+The app uses `contextIsolation: true`, `nodeIntegration: false`, sandboxing, a controlled preload, and external URL validation so dangerous APIs are not exposed to the renderer.
 
 Local data, cache, and session files are kept out of the repository and ignored by Git.
 
