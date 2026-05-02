@@ -30,6 +30,7 @@ import {
   isAllowedWhatsAppMainFrameUrl,
   normalizeExternalUrl,
   isSafeExternalUrl,
+  whatsappHomeUrl,
   whatsappPartition
 } from '../shared/allowedOrigins.js';
 import { cleanWhatsAppTitle, parseUnreadFromTitle } from '../shared/unread.js';
@@ -39,6 +40,12 @@ const __dirname = path.dirname(__filename);
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 const appUserModelId = 'com.zapdesk.app';
 const { autoUpdater } = electronUpdater;
+const debugLinks = process.env.ZAPDESK_DEBUG_LINKS === '1';
+
+if (isDev) {
+  const devProfile = process.env.ZAPDESK_DEV_PROFILE ?? 'default';
+  app.setPath('userData', path.join(app.getPath('appData'), `zapdesk-dev-${devProfile}`));
+}
 
 if (process.platform === 'win32') {
   app.setAppUserModelId(appUserModelId);
@@ -46,6 +53,10 @@ if (process.platform === 'win32') {
 
 app.commandLine.appendSwitch('high-dpi-support', '1');
 app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar');
+
+if (isDev) {
+  app.commandLine.appendSwitch('remote-debugging-port', '9222');
+}
 
 const singleInstanceLock = app.requestSingleInstanceLock();
 
@@ -76,6 +87,20 @@ let updateReadyToInstall = false;
 const trayIconSize = process.platform === 'win32' ? 32 : 22;
 let pendingReload = false;
 
+function cleanBrowserUserAgent(userAgent: string): string {
+  let cleaned = userAgent
+    .replace(/zapdesk\/[^\s]+/gi, '')
+    .replace(/electron\/[^\s]+/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  if (!cleaned.includes('Chrome')) {
+    cleaned += ' Chrome/120.0.0.0 Safari/537.36';
+  }
+  
+  return cleaned;
+}
+
 function assetPath(...segments: string[]): string {
   if (isDev) {
     return path.join(app.getAppPath(), ...segments);
@@ -90,6 +115,26 @@ function whatsappWebviewPreloadPath(): string {
 
 function isBlankNavigationUrl(rawUrl: string): boolean {
   return rawUrl === '' || rawUrl === 'about:blank';
+}
+
+function debugLinkEvent(eventName: string, details: Record<string, unknown>): void {
+  if (!debugLinks) return;
+  console.info(`[zapdesk:links] ${eventName}`, details);
+}
+
+function isWhatsAppOwnedNavigationUrl(rawUrl: string): boolean {
+  if (isAllowedWhatsAppMainFrameUrl(rawUrl)) return true;
+
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol === 'blob:') {
+      return url.origin === whatsappHomeUrl.slice(0, -1);
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
 }
 
 function iconPath(): string {
@@ -144,8 +189,8 @@ function configurePersistentSession(): void {
   const whatsappSession = session.fromPartition(whatsappPartition);
   
   // Obter um User Agent padrão do Electron e limpar referências ao próprio app/Electron
-  const baseUserAgent = session.defaultSession.getUserAgent();
-  const cleanUserAgent = baseUserAgent.replace(/ZapDesk\/[0-9.-]+ /, '').replace(/Electron\/[0-9.-]+ /, '');
+  const cleanUserAgent = cleanBrowserUserAgent(session.defaultSession.getUserAgent());
+  session.defaultSession.setUserAgent(cleanUserAgent);
   whatsappSession.setUserAgent(cleanUserAgent);
 
   whatsappSession.setPermissionRequestHandler((webContents, permission, callback) => {
@@ -188,11 +233,33 @@ function configurePersistentSession(): void {
   });
 
   // Escuta nativa para Downloads
-  whatsappSession.on('will-download', (_event, item) => {
+  whatsappSession.on('will-download', (_event, item, webContents) => {
+    debugLinkEvent('will-download', {
+      url: item.getURL(),
+      filename: item.getFilename(),
+      webContentsUrl: webContents.getURL()
+    });
     // Definir que mostre um SaveDialog para o usuário e defina o nome base
     item.setSaveDialogOptions({
       title: 'Salvar Arquivo',
-      defaultPath: path.join(app.getPath('downloads'), item.getFilename()),
+      defaultPath: path.join(app.getPath('downloads'), item.getFilename())
+    });
+
+    item.on('updated', (_downloadEvent, state) => {
+      debugLinkEvent('download-updated', {
+        filename: item.getFilename(),
+        state,
+        receivedBytes: item.getReceivedBytes(),
+        totalBytes: item.getTotalBytes()
+      });
+    });
+
+    item.once('done', (_downloadEvent, state) => {
+      debugLinkEvent('download-done', {
+        filename: item.getFilename(),
+        state,
+        savePath: item.getSavePath()
+      });
     });
   });
 
@@ -228,6 +295,7 @@ function createWindow(): void {
   mainWindow.setMenu(null);
 
   mainWindow.once('ready-to-show', () => {
+    mainWindow?.maximize();
     mainWindow?.show();
   });
 
@@ -545,7 +613,12 @@ function updateUnreadVisuals(count: number): void {
 
 function openSafeExternalUrl(rawUrl: string): void {
   const normalizedUrl = normalizeExternalUrl(rawUrl);
-  if (!normalizedUrl) return;
+  if (!normalizedUrl) {
+    debugLinkEvent('blocked-unsafe-external-url', { rawUrl });
+    return;
+  }
+
+  debugLinkEvent('open-external', { rawUrl, normalizedUrl });
   void shell.openExternal(normalizedUrl).catch((error) => {
     console.warn(`Nao foi possivel abrir URL externa: ${normalizedUrl}`, error);
   });
@@ -612,6 +685,8 @@ function setConnectionState(state: ConnectionState): void {
 
 function configureWebContentsSecurity(webContents: WebContents): void {
   webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    debugLinkEvent('will-attach-webview', { src: params.src, preload: whatsappWebviewPreloadPath() });
+
     if (!isAllowedWhatsAppMainFrameUrl(params.src ?? '')) {
       event.preventDefault();
       return;
@@ -619,11 +694,13 @@ function configureWebContentsSecurity(webContents: WebContents): void {
 
     params.partition = whatsappPartition;
     params.allowpopups = 'true';
+    (params as { useragent?: string }).useragent = cleanBrowserUserAgent(session.defaultSession.getUserAgent());
     webPreferences.preload = whatsappWebviewPreloadPath();
     webPreferences.contextIsolation = true;
     webPreferences.nodeIntegration = false;
     webPreferences.sandbox = true;
     webPreferences.spellcheck = false;
+    webPreferences.transparent = false;
   });
 
   webContents.on('context-menu', (_event, params) => {
@@ -631,6 +708,8 @@ function configureWebContentsSecurity(webContents: WebContents): void {
   });
 
   webContents.setWindowOpenHandler(({ url }) => {
+    debugLinkEvent('window-open', { openerUrl: webContents.getURL(), url });
+
     if (isAllowedWhatsAppMainFrameUrl(url)) {
       return { action: 'allow' };
     }
@@ -656,6 +735,12 @@ function configureWebContentsSecurity(webContents: WebContents): void {
   });
 
   webContents.on('did-create-window', (childWindow, details) => {
+    debugLinkEvent('did-create-window', {
+      openerUrl: webContents.getURL(),
+      url: details.url,
+      disposition: details.disposition
+    });
+
     if (!isBlankNavigationUrl(details.url) || !isAllowedWhatsAppMainFrameUrl(webContents.getURL())) return;
 
     const timeout = setTimeout(() => {
@@ -671,7 +756,9 @@ function configureWebContentsSecurity(webContents: WebContents): void {
   });
 
   webContents.on('will-navigate', (event, url) => {
-    if (isAllowedWhatsAppMainFrameUrl(url)) return;
+    debugLinkEvent('will-navigate', { currentUrl: webContents.getURL(), url });
+
+    if (isWhatsAppOwnedNavigationUrl(url)) return;
 
     event.preventDefault();
     openSafeExternalUrl(url);
@@ -679,7 +766,9 @@ function configureWebContentsSecurity(webContents: WebContents): void {
   });
 
   webContents.on('will-redirect', (event, url) => {
-    if (isAllowedWhatsAppMainFrameUrl(url)) return;
+    debugLinkEvent('will-redirect', { currentUrl: webContents.getURL(), url });
+
+    if (isWhatsAppOwnedNavigationUrl(url)) return;
 
     event.preventDefault();
     openSafeExternalUrl(url);
@@ -698,6 +787,8 @@ function configureWebContentsSecurity(webContents: WebContents): void {
   });
 
   webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    debugLinkEvent('did-fail-load', { errorCode, errorDescription, validatedURL, isMainFrame });
+
     if (!isMainFrame) return;
 
     if (isAllowedWhatsAppMainFrameUrl(validatedURL)) {
@@ -742,10 +833,22 @@ function setupIpc(): void {
     return undefined;
   });
   ipcMain.on('shell:open-external-from-webview', (event, url: unknown) => {
+    console.log('[zapdesk:main] Received shell:open-external-from-webview', url, 'from', event.sender.getURL());
     if (typeof url !== 'string') return;
-    if (!isAllowedWhatsAppMainFrameUrl(event.sender.getURL())) return;
+    if (!isAllowedWhatsAppMainFrameUrl(event.sender.getURL())) {
+      console.log('[zapdesk:main] Sender URL not allowed:', event.sender.getURL());
+      return;
+    }
 
     openSafeExternalUrl(url);
+  });
+  ipcMain.on('zapdesk-webview-debug', (event, payload: unknown) => {
+    if (!payload || typeof payload !== 'object') return;
+
+    debugLinkEvent('webview-debug', {
+      senderUrl: event.sender.getURL(),
+      ...(payload as Record<string, unknown>)
+    });
   });
 
   app.on('web-contents-created', (_event, contents) => {

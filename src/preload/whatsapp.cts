@@ -1,6 +1,8 @@
 import { ipcRenderer } from 'electron';
 
 const OPEN_EXTERNAL_CHANNEL = 'shell:open-external-from-webview';
+const DEBUG_CHANNEL = 'zapdesk-webview-debug';
+const HOST_OPEN_EXTERNAL_CHANNEL = 'zapdesk-open-external';
 const INSTALL_FLAG = '__zapdeskWhatsAppLinkBridgeInstalled';
 const ATTRIBUTE_CANDIDATES = [
   'href',
@@ -62,6 +64,27 @@ function isMapLikeCandidate(value: string): boolean {
   return /maps|googleapis|geo:|localiza|location|-?\d{1,2}\.\d+\s*,\s*-?\d{1,3}\.\d+/i.test(value);
 }
 
+function debugBridge(eventName: string, details: Record<string, unknown>): void {
+  const payload = { eventName, details };
+  ipcRenderer.send(DEBUG_CHANNEL, payload);
+  ipcRenderer.sendToHost(DEBUG_CHANNEL, payload);
+}
+
+function describeClickTarget(event: MouseEvent): Record<string, unknown> {
+  const target = event.target;
+  if (!(target instanceof Element)) return { targetType: typeof target };
+
+  const clickable = target.closest('a,[role="link"],[role="button"],button');
+  return {
+    tagName: target.tagName,
+    clickableTagName: clickable?.tagName ?? null,
+    role: target.getAttribute('role') ?? clickable?.getAttribute('role') ?? null,
+    hasHref: Boolean(target.closest('a[href]')),
+    ariaLabel: target.getAttribute('aria-label') ?? clickable?.getAttribute('aria-label') ?? null,
+    title: target.getAttribute('title') ?? clickable?.getAttribute('title') ?? null
+  };
+}
+
 function findAttributeCandidate(start: Element): string | null {
   let element: Element | null = start;
   let depth = 0;
@@ -113,13 +136,17 @@ function openExternal(rawUrl: string | null): boolean {
   if (!candidate || isWhatsAppUrl(candidate)) return false;
 
   ipcRenderer.send(OPEN_EXTERNAL_CHANNEL, candidate);
+  ipcRenderer.sendToHost(HOST_OPEN_EXTERNAL_CHANNEL, candidate);
   return true;
 }
 
 function handleClick(event: MouseEvent): void {
   if (event.defaultPrevented) return;
 
-  if (!openExternal(findClickCandidate(event))) return;
+  const candidate = findClickCandidate(event);
+  debugBridge('click', { candidate, target: describeClickTarget(event) });
+
+  if (!openExternal(candidate)) return;
 
   event.preventDefault();
   event.stopImmediatePropagation();
@@ -142,4 +169,5 @@ if (!bridgeGlobal[INSTALL_FLAG]) {
   document.addEventListener('click', handleClick, true);
   document.addEventListener('auxclick', handleClick, true);
   window.addEventListener('message', handleMessage);
+  debugBridge('installed', { href: window.location.href });
 }

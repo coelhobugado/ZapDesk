@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import type { AppSettings, ConnectionState } from '../shared/settings';
 import { defaultSettings, type AppUpdateStatus } from '../shared/settings';
-import { desktopChromeUserAgent } from '../shared/browserProfile';
 import { whatsappHomeUrl, whatsappPartition } from '../shared/allowedOrigins';
 import { SettingsPanel } from './components/SettingsPanel';
 
@@ -103,6 +102,7 @@ export function App() {
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [slowLoad, setSlowLoad] = useState(false);
+  const [loadingDetails, setLoadingDetails] = useState('Conectando ao WhatsApp Web com sua sessao local.');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [connection, setConnection] = useState<ConnectionState>(navigator.onLine ? 'online' : 'offline');
   const [unread, setUnread] = useState(0);
@@ -115,6 +115,7 @@ export function App() {
     hasShownWhatsAppRef.current = true;
     explicitReloadRef.current = false;
     setSlowLoad(false);
+    setLoadingDetails('Conectando ao WhatsApp Web com sua sessao local.');
     setLoading(false);
     setLoadError(null);
 
@@ -129,6 +130,7 @@ export function App() {
 
     setLoadError(null);
     setSlowLoad(false);
+    setLoadingDetails('Conectando ao WhatsApp Web com sua sessao local.');
     setLoading(true);
 
     if (loadingWatchdogRef.current) {
@@ -197,7 +199,6 @@ export function App() {
       startLoading(false);
     });
     const unsubFinished = window.zapdesk.onLoadFinished(() => {
-      finishLoading();
       setConnection('online');
     });
     const unsubCommand = window.zapdesk.onWhatsAppCommand((command) => {
@@ -259,6 +260,17 @@ export function App() {
         setLoading(false);
       }
     };
+    const handleIpcMessage = (event: Electron.IpcMessageEvent) => {
+      if (event.channel === 'zapdesk-open-external') {
+        const [url] = event.args;
+        if (typeof url === 'string') void window.zapdesk.openExternal(url);
+        return;
+      }
+
+      if (event.channel === 'zapdesk-webview-debug') {
+        console.info('[zapdesk:webview]', ...event.args);
+      }
+    };
     if (pendingWebviewReloadRef.current) {
       pendingWebviewReloadRef.current = false;
       reload();
@@ -268,30 +280,68 @@ export function App() {
     const interactiveProbe = window.setInterval(() => {
       probeAttempts += 1;
       
-      if (hasShownWhatsAppRef.current || probeAttempts > 20) {
+      if (hasShownWhatsAppRef.current) {
         window.clearInterval(interactiveProbe);
+        return;
+      }
+      
+      if (probeAttempts > 35) {
+        console.warn('[zapdesk] Probe attempts exceeded 35. Forcing finishLoading.');
+        window.clearInterval(interactiveProbe);
+        finishLoading();
         return;
       }
 
       void webviewElement
         .executeJavaScript(
-          `Boolean(
-            location.origin === 'https://web.whatsapp.com' &&
-            document.querySelector('#app') &&
-            (
+          `(() => {
+            const app = document.querySelector('#app');
+            const readyElement =
               document.querySelector('[data-testid="chat-list"]') ||
               document.querySelector('[aria-label="Chat list"]') ||
               document.querySelector('[aria-label="Lista de conversas"]') ||
               document.querySelector('canvas') ||
-              document.body?.innerText?.includes('WhatsApp')
-            )
-          )`,
+              document.querySelector('#side') ||
+              document.querySelector('#pane-side') ||
+              document.querySelector('[data-icon="chat"]') ||
+              document.querySelector('[data-testid="qrcode"]') ||
+              document.querySelector('[data-testid="intro-title"]') ||
+              document.querySelector('.two');
+            const scriptCount = document.scripts.length;
+            const stylesheetCount = document.querySelectorAll('link[rel="stylesheet"], style').length;
+            const text = document.body?.innerText?.replace(/\\s+/g, ' ').trim().slice(0, 180) ?? '';
+
+            return {
+              ready: Boolean(location.origin === 'https://web.whatsapp.com' && app && readyElement),
+              hasApp: Boolean(app),
+              hasReadyElement: Boolean(readyElement),
+              origin: location.origin,
+              scriptCount,
+              stylesheetCount,
+              text
+            };
+          })()`,
           false
         )
-        .then((ready) => {
-          if (ready) finishLoading();
+        .then((probe) => {
+          console.info('[zapdesk] Probe state:', probe);
+          if (probe?.ready) {
+            finishLoading();
+            return;
+          }
+
+          if (probe && probeAttempts >= 3) {
+            const hasAssets = probe.scriptCount > 0 || probe.stylesheetCount > 0;
+            setLoadingDetails(
+              hasAssets
+                ? 'Aguardando QR Code ou lista de conversas do WhatsApp Web.'
+                : 'WhatsApp Web abriu sem carregar seus scripts. Recarregando pode resolver.'
+            );
+          }
         })
-        .catch(() => undefined);
+        .catch((err) => {
+          console.warn('[zapdesk] Probe failed:', err);
+        });
     }, 1200);
 
     webviewElement.addEventListener('did-start-loading', handleStart);
@@ -299,6 +349,7 @@ export function App() {
     webviewElement.addEventListener('did-stop-loading', handleStop);
     webviewElement.addEventListener('did-finish-load', handleFinish);
     webviewElement.addEventListener('did-fail-load', handleFail);
+    webviewElement.addEventListener('ipc-message', handleIpcMessage);
 
     return () => {
       window.clearInterval(interactiveProbe);
@@ -307,6 +358,7 @@ export function App() {
       webviewElement.removeEventListener('did-stop-loading', handleStop);
       webviewElement.removeEventListener('did-finish-load', handleFinish);
       webviewElement.removeEventListener('did-fail-load', handleFail);
+      webviewElement.removeEventListener('ipc-message', handleIpcMessage);
     };
   }, [finishLoading, reload, startLoading, webviewElement]);
 
@@ -346,8 +398,7 @@ export function App() {
           className="whatsapp-view"
           src={whatsappHomeUrl}
           partition={whatsappPartition}
-          webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes,spellcheck=no"
-          useragent={desktopChromeUserAgent}
+          webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes,spellcheck=no,transparent=no"
           allowpopups
         />
 
@@ -418,7 +469,7 @@ export function App() {
                 <span>Sincronizando sessao</span>
               </div>
               <h1>ZapDesk</h1>
-              <p>Conectando ao WhatsApp Web com sua sessao local.</p>
+              <p>{loadingDetails}</p>
               {slowLoad && (
                 <button type="button" className="continue-button" onClick={reload} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <RefreshCw size={18} />
