@@ -1,47 +1,91 @@
 # ZapDesk
 
-[Read this README in English](./README.en.md)
+<p align="center">
+  <img src="assets/zapdesk.png" alt="ZapDesk" width="96" height="96" />
+</p>
 
-Cliente desktop alternativo para WhatsApp Web no Windows.
+<h3 align="center">WhatsApp Web em uma janela desktop mais leve, focada e integrada ao Windows.</h3>
 
-O ZapDesk foi criado para quem usa WhatsApp no computador, mas sofre com o aplicativo oficial travando, consumindo recursos demais ou falhando em momentos importantes. No navegador, o WhatsApp Web funciona, mas fica misturado com outras abas e as notificacoes nem sempre aparecem. O ZapDesk coloca o WhatsApp Web em uma janela propria, com notificacoes nativas, tray icon e atalhos de desktop.
+<p align="center">
+  <a href="https://github.com/coelhobugado/ZapDesk/releases/latest"><img alt="Versao mais recente" src="https://img.shields.io/github/v/release/coelhobugado/ZapDesk?label=versao&style=for-the-badge"></a>
+  <a href="https://github.com/coelhobugado/ZapDesk/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/coelhobugado/ZapDesk/total?style=for-the-badge"></a>
+  <a href="https://github.com/coelhobugado/ZapDesk/actions/workflows/build.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/coelhobugado/ZapDesk/build.yml?style=for-the-badge"></a>
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-10%2B-0078D4?style=for-the-badge&logo=windows">
+</p>
 
-> O ZapDesk nao automatiza mensagens, nao faz disparo em massa, nao envia spam e nao tenta burlar regras do WhatsApp. Ele e apenas um cliente desktop alternativo para uso normal do WhatsApp Web.
+<p align="center">
+  <a href="https://github.com/coelhobugado/ZapDesk/releases/latest"><strong>Baixar para Windows</strong></a>
+  ·
+  <a href="#recursos">Recursos</a>
+  ·
+  <a href="#desenvolvimento">Desenvolvimento</a>
+  ·
+  <a href="./README.en.md">English README</a>
+</p>
+
+---
+
+## O Que E
+
+ZapDesk e um cliente desktop alternativo para usar o WhatsApp Web no Windows com mais foco, menos friccao e integracoes nativas do sistema.
+
+Ele nasceu para quem depende do WhatsApp no computador, mas nao quer deixar o atendimento perdido em uma aba do navegador, nem sofrer com o aplicativo oficial travando, pesando ou falhando em momentos importantes.
+
+Com o ZapDesk, o WhatsApp Web fica em uma janela propria, com icone na bandeja, notificacoes nativas, contador de mensagens, atalhos globais, sessao persistente, corretor ortografico e atualizacoes automaticas.
+
+> ZapDesk nao automatiza mensagens, nao faz disparo em massa, nao envia spam e nao tenta burlar regras do WhatsApp. Ele e apenas um cliente desktop alternativo para uso normal do WhatsApp Web.
 
 ## Baixar
 
-Para apenas instalar e usar, baixe o instalador mais recente:
+Instale a versao mais recente:
 
 [Baixar ZapDesk para Windows](https://github.com/coelhobugado/ZapDesk/releases/latest)
 
 Pagina completa de releases:
 
-[ZapDesk no GitHub Releases](https://github.com/coelhobugado/ZapDesk/releases)
+[Ver todas as versoes publicadas](https://github.com/coelhobugado/ZapDesk/releases)
+
+O instalador principal segue o formato:
+
+```text
+ZapDesk-<versao>-Setup.exe
+```
+
+## Para Quem Serve
+
+- Pessoas que usam WhatsApp Web todos os dias no Windows.
+- Atendentes, vendedores, suporte, recepcao e times pequenos que precisam responder rapido.
+- Quem prefere uma janela dedicada em vez de misturar o WhatsApp com abas do navegador.
+- Quem quer notificacoes, bandeja do sistema, atalhos e atualizacao automatica sem complicacao.
+
+## Recursos
+
+| Recurso | Beneficio |
+| --- | --- |
+| Janela dedicada para WhatsApp Web | Mantem o WhatsApp separado do navegador e mais facil de encontrar. |
+| Sessao persistente | Evita escanear QR Code a cada abertura. |
+| Bandeja do Windows | Abra, oculte, recarregue, verifique atualizacoes ou saia pelo tray icon. |
+| Minimizar ao fechar | O botao X pode esconder o app na bandeja em vez de encerrar. |
+| Notificacoes nativas | Receba alertas do Windows quando houver novas mensagens. |
+| Contador de nao lidas | Mostra quantidade de mensagens no titulo, tray e recursos nativos quando suportado. |
+| Atalhos globais | Mostre, oculte, recarregue ou encerre o app pelo teclado. |
+| Sempre no topo | Mantenha o WhatsApp acima das outras janelas quando precisar acompanhar conversas. |
+| Iniciar com Windows | Abra o ZapDesk automaticamente ao entrar no sistema. |
+| Corretor ortografico | Marque palavras incorretas e use sugestoes pelo menu de contexto. |
+| Links externos clicaveis | Links do WhatsApp abrem no navegador padrao do usuario. |
+| Tema escuro | Shell do aplicativo com visual escuro opcional. |
+| Limpeza de cache e sessao | Recomece a sessao local quando precisar corrigir login ou cache. |
+| Atualizacoes automaticas | O app instalado verifica novas versoes publicadas no GitHub Releases. |
+| Protecao de navegacao | URLs externas sao validadas antes de sair do ambiente do WhatsApp Web. |
 
 ## Como Usar
 
-1. Baixe o instalador mais recente na pagina de releases.
-2. Execute o instalador.
-3. Abra o ZapDesk.
-4. Escaneie o QR Code do WhatsApp Web, se solicitado.
-5. Depois disso, a sessao fica salva localmente.
-
-## Principais Recursos
-
-- WhatsApp Web em uma janela dedicada.
-- Sessao persistente para evitar QR Code a cada abertura.
-- Notificacoes nativas do Windows para novas mensagens.
-- Tray icon com abrir, ocultar, recarregar e sair.
-- Fechar no X pode minimizar para a bandeja.
-- Contador de mensagens nao lidas no titulo, tray e overlay do icone quando suportado.
-- Botao flutuante discreto com acoes rapidas.
-- Opcao de manter a janela sempre no topo.
-- Opcao de iniciar com o Windows.
-- Tela de configuracoes local.
-- Links externos abrem no navegador padrao.
-- Corretor ortografico opcional com sugestoes no menu de contexto.
-- Atualizacoes automaticas via GitHub Releases.
-- Bloqueio de navegacao externa insegura.
+1. Acesse a [ultima release](https://github.com/coelhobugado/ZapDesk/releases/latest).
+2. Baixe o instalador `ZapDesk-<versao>-Setup.exe`.
+3. Execute o instalador no Windows.
+4. Abra o ZapDesk.
+5. Escaneie o QR Code do WhatsApp Web, se solicitado.
+6. Use normalmente. A sessao fica salva localmente.
 
 ## Atalhos
 
@@ -51,15 +95,38 @@ Pagina completa de releases:
 | `Ctrl+R` | Recarregar WhatsApp Web |
 | `Ctrl+Shift+Q` | Sair totalmente do ZapDesk |
 
-## Por Que Existe
+## Atualizacoes
 
-O objetivo do ZapDesk e ser uma alternativa mais estavel e focada para usar WhatsApp Web no Windows:
+O ZapDesk usa GitHub Releases com `electron-updater`.
 
-- o app oficial pode travar ou ficar pesado;
-- o WhatsApp Web no navegador fica perdido entre abas;
-- notificacoes do navegador podem falhar;
-- fechar o navegador pode encerrar o fluxo de uso;
-- uma janela dedicada melhora foco, organizacao e acesso rapido.
+Quando uma nova versao e publicada corretamente, o app instalado consegue detectar, baixar e instalar a atualizacao. Para isso, cada release precisa conter:
+
+- `ZapDesk-<versao>-Setup.exe`
+- `ZapDesk-<versao>-Setup.exe.blockmap`
+- `latest.yml`
+
+O `appId` deve permanecer:
+
+```text
+com.zapdesk.app
+```
+
+Manter esse identificador garante que o Windows e o atualizador reconhecam o aplicativo como a mesma instalacao entre versoes.
+
+## Privacidade E Seguranca
+
+ZapDesk nao possui servidor proprio e nao envia mensagens, contatos, conversas ou sessoes para terceiros. A autenticacao e o uso continuam acontecendo pelo WhatsApp Web.
+
+O projeto foi estruturado para reduzir riscos comuns em apps Electron:
+
+- `contextIsolation` habilitado;
+- `nodeIntegration` desabilitado;
+- webview do WhatsApp em particao persistente isolada;
+- preload controlado;
+- validacao de origem para navegacao;
+- abertura de links externos via navegador padrao;
+- permissoes sensiveis solicitadas apenas para o WhatsApp Web;
+- dados locais, cache e sessao fora do repositorio.
 
 ## Desenvolvimento
 
@@ -81,17 +148,12 @@ Rode em desenvolvimento:
 npm run dev
 ```
 
-Gere o build local:
-
-```bash
-npm run build
-```
-
-Rode validacoes:
+Rode as validacoes principais:
 
 ```bash
 npm run lint
 npm test
+npm run build
 ```
 
 Gere o instalador:
@@ -100,37 +162,77 @@ Gere o instalador:
 npm run dist
 ```
 
-O instalador e gerado em:
+O instalador local sera gerado em:
 
 ```text
 release/ZapDesk-<version>-Setup.exe
 ```
 
-## Estrutura
+## Scripts
+
+| Script | O que faz |
+| --- | --- |
+| `npm run dev` | Abre renderer Vite e processo principal Electron em modo desenvolvimento. |
+| `npm run typecheck` | Valida TypeScript sem emitir arquivos. |
+| `npm run lint` | Executa ESLint no projeto. |
+| `npm test` | Roda os testes com Vitest. |
+| `npm run build` | Gera build do renderer e do Electron. |
+| `npm run dist` | Cria o instalador Windows com electron-builder. |
+| `npm run clean` | Remove `dist` e `release`. |
+
+## Estrutura Do Projeto
 
 ```text
 src/main       Processo principal do Electron
 src/preload    Ponte segura entre renderer e main
 src/renderer   Interface React/Vite
-src/shared     Tipos e utilitarios compartilhados
+src/shared     Tipos, configuracoes e utilitarios compartilhados
 assets         Icone usado em runtime
-build          Icone do instalador
+build          Icone usado no instalador
+release        Instaladores gerados localmente
 ```
 
-## Atualizacoes
+## Stack
 
-O `appId` deve permanecer `com.zapdesk.app`. Para novas versoes, altere `version` no `package.json`, gere o instalador com `npm run dist` e publique uma release com o instalador, o `.blockmap` e o `latest.yml`. Esses tres arquivos permitem que o app instalado detecte e baixe atualizacoes.
+- Electron
+- React
+- Vite
+- TypeScript
+- electron-builder
+- electron-updater
+- electron-store
+- Vitest
+- ESLint
 
-A sessao local do WhatsApp fica nos dados do usuario e nao e removida em atualizacoes.
+## Roadmap De Melhorias
 
-## Privacidade E Seguranca
+Ideias naturais para evoluir o ZapDesk:
 
-O ZapDesk nao possui servidor proprio e nao envia mensagens, contatos ou sessoes para terceiros. A autenticacao e o uso continuam acontecendo pelo WhatsApp Web.
+- tela de onboarding para primeira instalacao;
+- preferencias avancadas de notificacao;
+- temas visuais adicionais;
+- instalador assinado digitalmente;
+- pagina de documentacao com capturas de tela;
+- suporte opcional a multiplos perfis;
+- melhorias de acessibilidade;
+- telemetria local opcional apenas para diagnostico, sem conteudo de mensagens.
 
-O app usa `contextIsolation: true`, `nodeIntegration: false`, sandbox, preload controlado e validacao de URLs externas para nao expor APIs perigosas ao renderer.
+## Contribuindo
 
-Dados locais, cache e sessao ficam fora do repositorio e sao ignorados pelo Git.
+Contribuicoes sao bem-vindas quando ajudam o projeto a continuar simples, seguro e util.
+
+Antes de abrir um pull request:
+
+1. Rode `npm run lint`.
+2. Rode `npm test`.
+3. Rode `npm run build`.
+4. Descreva claramente o problema resolvido.
+5. Evite recursos de automacao abusiva, disparo em massa ou qualquer coisa que viole regras do WhatsApp.
 
 ## Sobre Automacoes
 
 Este projeto nao usa `whatsapp-web.js` nesta versao. Existe apenas um ponto de extensao em `src/main/optional/whatsappWebJsAdapter.ts` para uma futura integracao opcional, sem implementar spam, disparo em massa ou qualquer uso abusivo.
+
+## Aviso
+
+ZapDesk e um projeto independente e nao oficial. WhatsApp e WhatsApp Web pertencem aos seus respectivos proprietarios. Use respeitando os termos da plataforma.
