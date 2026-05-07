@@ -651,18 +651,40 @@ function showEditingContextMenu(webContents: WebContents, params: ContextMenuPar
   const template: MenuItemConstructorOptions[] = [];
   const hasSelection = params.selectionText.trim().length > 0;
   const isEditable = params.isEditable;
+  const hasMisspelledWord = params.spellcheckEnabled && params.misspelledWord.trim().length > 0;
 
-  if (isEditable) {
-    if (params.misspelledWord && params.dictionarySuggestions.length > 0 && params.spellcheckEnabled) {
+  if (hasMisspelledWord) {
+    const suggestions = params.dictionarySuggestions.slice(0, 6);
+
+    if (suggestions.length > 0) {
       template.push(
-        ...params.dictionarySuggestions.slice(0, 6).map((suggestion) => ({
+        ...suggestions.map((suggestion) => ({
           label: suggestion,
-          click: () => webContents.replaceMisspelling(suggestion)
-        })),
-        { type: 'separator' } as MenuItemConstructorOptions
+          click: () => {
+            webContents.focus();
+            webContents.replaceMisspelling(suggestion);
+          }
+        }))
       );
+    } else {
+      template.push({
+        label: 'Sem sugestoes',
+        enabled: false
+      });
     }
 
+    template.push(
+      {
+        label: `Adicionar "${params.misspelledWord}" ao dicionario`,
+        click: () => {
+          webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord);
+        }
+      },
+      { type: 'separator' }
+    );
+  }
+
+  if (isEditable) {
     template.push(
       { label: 'Desfazer', role: 'undo', enabled: params.editFlags.canUndo },
       { label: 'Refazer', role: 'redo', enabled: params.editFlags.canRedo },
