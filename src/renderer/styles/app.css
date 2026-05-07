@@ -379,7 +379,8 @@ button {
 
 .settings-panel {
   display: grid;
-  max-height: min(640px, 100%);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: calc(100vh - 44px);
   overflow: hidden;
 }
 
@@ -411,7 +412,9 @@ button {
 
 .settings-list {
   display: grid;
-  overflow: auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .toggle-row {
