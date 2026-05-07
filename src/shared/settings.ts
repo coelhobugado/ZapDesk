@@ -5,6 +5,7 @@ export type AppSettings = {
   notifications: boolean;
   darkTheme: boolean;
   autoUpdate: boolean;
+  spellChecker: boolean;
 };
 
 export const defaultSettings: AppSettings = {
@@ -13,7 +14,8 @@ export const defaultSettings: AppSettings = {
   alwaysOnTop: false,
   notifications: true,
   darkTheme: true,
-  autoUpdate: true
+  autoUpdate: true,
+  spellChecker: true
 };
 
 export type UnreadPayload = {

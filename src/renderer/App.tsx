@@ -318,7 +318,9 @@ export function App() {
           src={whatsappHomeUrl}
           partition={whatsappPartition}
           preload={window.whatsappPreloadPath}
-          webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes,spellcheck=no,transparent=no"
+          webpreferences={`contextIsolation=yes,nodeIntegration=no,sandbox=yes,spellcheck=${
+            settings.spellChecker ? 'yes' : 'no'
+          },transparent=no`}
           allowpopups
         />
 

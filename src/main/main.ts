@@ -174,8 +174,23 @@ function saveSettings(settings: Partial<AppSettings>): AppSettings {
   return next;
 }
 
+function applySpellCheckerSettings(settings = getSettings()): void {
+  const whatsappSession = session.fromPartition(whatsappPartition);
+  whatsappSession.setSpellCheckerEnabled(settings.spellChecker);
+
+  if (!settings.spellChecker) return;
+
+  const preferredLanguages = ['pt-BR', 'en-US'].filter((language) =>
+    whatsappSession.availableSpellCheckerLanguages.includes(language)
+  );
+  if (preferredLanguages.length > 0) {
+    whatsappSession.setSpellCheckerLanguages(preferredLanguages);
+  }
+}
+
 function applySettings(settings = getSettings()): void {
   mainWindow?.setAlwaysOnTop(settings.alwaysOnTop);
+  applySpellCheckerSettings(settings);
   if (app.isPackaged) {
     app.setLoginItemSettings({
       openAtLogin: settings.startWithWindows,
@@ -187,6 +202,7 @@ function applySettings(settings = getSettings()): void {
 
 function configurePersistentSession(): void {
   const whatsappSession = session.fromPartition(whatsappPartition);
+  applySpellCheckerSettings();
   
   // Obter um User Agent padrão do Electron e limpar referências ao próprio app/Electron
   const cleanUserAgent = cleanBrowserUserAgent(session.defaultSession.getUserAgent());
@@ -637,6 +653,16 @@ function showEditingContextMenu(webContents: WebContents, params: ContextMenuPar
   const isEditable = params.isEditable;
 
   if (isEditable) {
+    if (params.misspelledWord && params.dictionarySuggestions.length > 0 && params.spellcheckEnabled) {
+      template.push(
+        ...params.dictionarySuggestions.slice(0, 6).map((suggestion) => ({
+          label: suggestion,
+          click: () => webContents.replaceMisspelling(suggestion)
+        })),
+        { type: 'separator' } as MenuItemConstructorOptions
+      );
+    }
+
     template.push(
       { label: 'Desfazer', role: 'undo', enabled: params.editFlags.canUndo },
       { label: 'Refazer', role: 'redo', enabled: params.editFlags.canRedo },
@@ -699,7 +725,7 @@ function configureWebContentsSecurity(webContents: WebContents): void {
     webPreferences.contextIsolation = true;
     webPreferences.nodeIntegration = false;
     webPreferences.sandbox = true;
-    webPreferences.spellcheck = false;
+    webPreferences.spellcheck = getSettings().spellChecker;
     webPreferences.transparent = false;
   });
 
