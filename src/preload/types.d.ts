@@ -3,6 +3,7 @@ import type { AppSettings, AppUpdateStatus, ConnectionState, UnreadPayload } fro
 
 declare global {
   interface Window {
+    whatsappPreloadPath: string;
     zapdesk: {
       getSettings: () => Promise<AppSettings>;
       updateSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>;
@@ -31,6 +32,7 @@ declare global {
       webview: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
         src?: string;
         partition?: string;
+        preload?: string;
         webpreferences?: string;
         useragent?: string;
       };

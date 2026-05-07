@@ -85,51 +85,54 @@ export function parseUrl(rawUrl: string): URL | null {
 }
 
 export function normalizeExternalUrl(rawUrl: string): string | null {
-  const trimmed = trimCandidateUrl(rawUrl);
+  let trimmed = trimCandidateUrl(rawUrl);
   if (!trimmed) return null;
 
   const embeddedCandidate = extractEmbeddedExternalCandidate(trimmed);
   if (embeddedCandidate && embeddedCandidate !== trimmed) {
-    return normalizeExternalUrl(embeddedCandidate);
+    trimmed = embeddedCandidate;
   }
 
-  const directUrl = parseUrl(trimmed);
-  if (directUrl) {
-    const staticMapUrl = normalizeGoogleStaticMapUrl(directUrl);
-    if (staticMapUrl) return staticMapUrl;
-  }
-
-  if (directUrl && safeExternalProtocols.has(directUrl.protocol)) {
-    return directUrl.toString();
-  }
-
+  // Keep geo: translated to Google Maps because Windows does not handle it natively.
   if (/^geo:/i.test(trimmed)) {
     const payload = trimmed.slice(4).trim();
-    if (!payload) return null;
-
-    const [coordinates = '', queryString = ''] = payload.split('?');
-    const params = new URLSearchParams(queryString);
-    const query = normalizeCoordinateQuery(params.get('q') ?? coordinates);
-    if (!query) return null;
-
-    return buildGoogleMapsSearchUrl(query);
+    if (payload) {
+      const [coordinates = '', queryString = ''] = payload.split('?');
+      const params = new URLSearchParams(queryString);
+      const query = normalizeCoordinateQuery(params.get('q') ?? coordinates);
+      if (query) {
+        const mapsUrl = buildGoogleMapsSearchUrl(query);
+        if (mapsUrl) return mapsUrl;
+      }
+    }
   }
 
   if (/^maps:/i.test(trimmed)) {
     const query = normalizeCoordinateQuery(trimmed.slice(5));
-    if (!query) return null;
-
-    return buildGoogleMapsSearchUrl(query);
-  }
-
-  if (/^(www\.|maps\.app\.goo\.gl\/|goo\.gl\/maps\/)/i.test(trimmed)) {
-    return `https://${trimmed}`;
+    if (query) {
+      const mapsUrl = buildGoogleMapsSearchUrl(query);
+      if (mapsUrl) return mapsUrl;
+    }
   }
 
   const coordinatePair = extractCoordinatePair(trimmed);
-  if (coordinatePair) return buildGoogleMapsSearchUrl(coordinatePair);
+  if (coordinatePair && coordinatePair === trimmed.replace(/\s+/g, '')) {
+    return buildGoogleMapsSearchUrl(coordinatePair);
+  }
 
-  return null;
+  if (/^(www\.|maps\.app\.goo\.gl\/|goo\.gl\/maps\/)/i.test(trimmed)) {
+    trimmed = `https://${trimmed}`;
+  }
+
+  const parsed = parseUrl(trimmed);
+  if (!parsed) return null;
+
+  const staticMapUrl = normalizeGoogleStaticMapUrl(parsed);
+  if (staticMapUrl) return staticMapUrl;
+
+  if (!safeExternalProtocols.has(parsed.protocol)) return null;
+
+  return parsed.href;
 }
 
 export function isAllowedWhatsAppMainFrameUrl(rawUrl: string): boolean {

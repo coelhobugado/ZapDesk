@@ -23,73 +23,6 @@ const defaultUpdateStatus: AppUpdateStatus = {
   currentVersion: '0.0.0'
 };
 
-const externalLinkInterceptorScript = `
-  (() => {
-    if ((window).__zapdeskExternalLinkInterceptorInstalled) return;
-    (window).__zapdeskExternalLinkInterceptorInstalled = true;
-
-    const isWhatsAppUrl = (rawUrl) => {
-      try {
-        const url = new URL(rawUrl, window.location.href);
-        return url.protocol === 'https:' && url.hostname.toLowerCase() === 'web.whatsapp.com';
-      } catch {
-        return false;
-      }
-    };
-
-    const getCandidateUrl = (event) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return null;
-
-      const anchor = target.closest('a[href]');
-      if (anchor instanceof HTMLAnchorElement) {
-        return anchor.getAttribute('href') ?? anchor.href ?? null;
-      }
-
-      const elementWithUrl = target.closest('[data-url],[data-href],[href]');
-      if (!elementWithUrl) return null;
-
-      return (
-        elementWithUrl.getAttribute('data-url') ||
-        elementWithUrl.getAttribute('data-href') ||
-        elementWithUrl.getAttribute('href')
-      );
-    };
-
-    const originalWindowOpen = window.open.bind(window);
-    const sendExternalUrl = (url) => {
-      if (document.documentElement.getAttribute('data-zapdesk-link-bridge') === 'ready') {
-        window.postMessage({ type: 'zapdesk:open-external', url }, '*');
-        return null;
-      }
-
-      return originalWindowOpen(url, '_blank', 'noopener,noreferrer');
-    };
-
-    window.open = (url, target, features) => {
-      const candidateUrl = typeof url === 'string' ? url : url?.toString?.();
-      if (candidateUrl && candidateUrl !== 'about:blank' && !isWhatsAppUrl(candidateUrl)) {
-        sendExternalUrl(candidateUrl);
-        return null;
-      }
-
-      return originalWindowOpen(url, target, features);
-    };
-
-    const openExternal = (event) => {
-      const candidateUrl = getCandidateUrl(event);
-      if (!candidateUrl || isWhatsAppUrl(candidateUrl)) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      sendExternalUrl(candidateUrl);
-    };
-
-    document.addEventListener('click', openExternal, true);
-    document.addEventListener('auxclick', openExternal, true);
-  })();
-`;
-
 export function App() {
   const webviewRef = useRef<WebviewTag | null>(null);
   const hasShownWhatsAppRef = useRef(false);
@@ -246,7 +179,6 @@ export function App() {
     };
     const handleReady = () => {
       void webviewElement.setZoomFactor(1);
-      void webviewElement.executeJavaScript(externalLinkInterceptorScript, false).catch(() => undefined);
     };
     const handleStop = () => {
       setConnection(navigator.onLine ? 'online' : 'offline');
@@ -258,17 +190,6 @@ export function App() {
       if (event.isMainFrame) {
         setLoadError(`${event.errorDescription} (${event.errorCode})`);
         setLoading(false);
-      }
-    };
-    const handleIpcMessage = (event: Electron.IpcMessageEvent) => {
-      if (event.channel === 'zapdesk-open-external') {
-        const [url] = event.args;
-        if (typeof url === 'string') void window.zapdesk.openExternal(url);
-        return;
-      }
-
-      if (event.channel === 'zapdesk-webview-debug') {
-        console.info('[zapdesk:webview]', ...event.args);
       }
     };
     if (pendingWebviewReloadRef.current) {
@@ -349,7 +270,6 @@ export function App() {
     webviewElement.addEventListener('did-stop-loading', handleStop);
     webviewElement.addEventListener('did-finish-load', handleFinish);
     webviewElement.addEventListener('did-fail-load', handleFail);
-    webviewElement.addEventListener('ipc-message', handleIpcMessage);
 
     return () => {
       window.clearInterval(interactiveProbe);
@@ -358,7 +278,6 @@ export function App() {
       webviewElement.removeEventListener('did-stop-loading', handleStop);
       webviewElement.removeEventListener('did-finish-load', handleFinish);
       webviewElement.removeEventListener('did-fail-load', handleFail);
-      webviewElement.removeEventListener('ipc-message', handleIpcMessage);
     };
   }, [finishLoading, reload, startLoading, webviewElement]);
 
@@ -398,7 +317,10 @@ export function App() {
           className="whatsapp-view"
           src={whatsappHomeUrl}
           partition={whatsappPartition}
-          webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes,spellcheck=no,transparent=no"
+          preload={window.whatsappPreloadPath}
+          webpreferences={`contextIsolation=yes,nodeIntegration=no,sandbox=yes,spellcheck=${
+            settings.spellChecker ? 'yes' : 'no'
+          },transparent=no`}
           allowpopups
         />
 

@@ -174,8 +174,23 @@ function saveSettings(settings: Partial<AppSettings>): AppSettings {
   return next;
 }
 
+function applySpellCheckerSettings(settings = getSettings()): void {
+  const whatsappSession = session.fromPartition(whatsappPartition);
+  whatsappSession.setSpellCheckerEnabled(settings.spellChecker);
+
+  if (!settings.spellChecker) return;
+
+  const preferredLanguages = ['pt-BR', 'en-US'].filter((language) =>
+    whatsappSession.availableSpellCheckerLanguages.includes(language)
+  );
+  if (preferredLanguages.length > 0) {
+    whatsappSession.setSpellCheckerLanguages(preferredLanguages);
+  }
+}
+
 function applySettings(settings = getSettings()): void {
   mainWindow?.setAlwaysOnTop(settings.alwaysOnTop);
+  applySpellCheckerSettings(settings);
   if (app.isPackaged) {
     app.setLoginItemSettings({
       openAtLogin: settings.startWithWindows,
@@ -187,6 +202,7 @@ function applySettings(settings = getSettings()): void {
 
 function configurePersistentSession(): void {
   const whatsappSession = session.fromPartition(whatsappPartition);
+  applySpellCheckerSettings();
   
   // Obter um User Agent padrão do Electron e limpar referências ao próprio app/Electron
   const cleanUserAgent = cleanBrowserUserAgent(session.defaultSession.getUserAgent());
@@ -635,6 +651,38 @@ function showEditingContextMenu(webContents: WebContents, params: ContextMenuPar
   const template: MenuItemConstructorOptions[] = [];
   const hasSelection = params.selectionText.trim().length > 0;
   const isEditable = params.isEditable;
+  const hasMisspelledWord = params.spellcheckEnabled && params.misspelledWord.trim().length > 0;
+
+  if (hasMisspelledWord) {
+    const suggestions = params.dictionarySuggestions.slice(0, 6);
+
+    if (suggestions.length > 0) {
+      template.push(
+        ...suggestions.map((suggestion) => ({
+          label: suggestion,
+          click: () => {
+            webContents.focus();
+            webContents.replaceMisspelling(suggestion);
+          }
+        }))
+      );
+    } else {
+      template.push({
+        label: 'Sem sugestoes',
+        enabled: false
+      });
+    }
+
+    template.push(
+      {
+        label: `Adicionar "${params.misspelledWord}" ao dicionario`,
+        click: () => {
+          webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord);
+        }
+      },
+      { type: 'separator' }
+    );
+  }
 
   if (isEditable) {
     template.push(
@@ -699,7 +747,7 @@ function configureWebContentsSecurity(webContents: WebContents): void {
     webPreferences.contextIsolation = true;
     webPreferences.nodeIntegration = false;
     webPreferences.sandbox = true;
-    webPreferences.spellcheck = false;
+    webPreferences.spellcheck = getSettings().spellChecker;
     webPreferences.transparent = false;
   });
 
@@ -833,22 +881,10 @@ function setupIpc(): void {
     return undefined;
   });
   ipcMain.on('shell:open-external-from-webview', (event, url: unknown) => {
-    console.log('[zapdesk:main] Received shell:open-external-from-webview', url, 'from', event.sender.getURL());
     if (typeof url !== 'string') return;
-    if (!isAllowedWhatsAppMainFrameUrl(event.sender.getURL())) {
-      console.log('[zapdesk:main] Sender URL not allowed:', event.sender.getURL());
-      return;
-    }
+    if (!isAllowedWhatsAppMainFrameUrl(event.sender.getURL())) return;
 
     openSafeExternalUrl(url);
-  });
-  ipcMain.on('zapdesk-webview-debug', (event, payload: unknown) => {
-    if (!payload || typeof payload !== 'object') return;
-
-    debugLinkEvent('webview-debug', {
-      senderUrl: event.sender.getURL(),
-      ...(payload as Record<string, unknown>)
-    });
   });
 
   app.on('web-contents-created', (_event, contents) => {

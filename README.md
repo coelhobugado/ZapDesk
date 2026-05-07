@@ -39,6 +39,8 @@ Pagina completa de releases:
 - Opcao de iniciar com o Windows.
 - Tela de configuracoes local.
 - Links externos abrem no navegador padrao.
+- Corretor ortografico opcional com sugestoes no menu de contexto.
+- Atualizacoes automaticas via GitHub Releases.
 - Bloqueio de navegacao externa insegura.
 
 ## Atalhos
@@ -117,7 +119,7 @@ build          Icone do instalador
 
 ## Atualizacoes
 
-O `appId` deve permanecer `com.zapdesk.app`. Para novas versoes, altere apenas `version` no `package.json`; assim o instalador substitui a instalacao existente em vez de criar outro aplicativo.
+O `appId` deve permanecer `com.zapdesk.app`. Para novas versoes, altere `version` no `package.json`, gere o instalador com `npm run dist` e publique uma release com o instalador, o `.blockmap` e o `latest.yml`. Esses tres arquivos permitem que o app instalado detecte e baixe atualizacoes.
 
 A sessao local do WhatsApp fica nos dados do usuario e nao e removida em atualizacoes.
 

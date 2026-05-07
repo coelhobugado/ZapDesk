@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { AppSettings, AppUpdateStatus, ConnectionState, UnreadPayload } from '../shared/settings.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {
   const listener = (_event: Electron.IpcRendererEvent, payload: T) => callback(payload);
@@ -30,3 +35,5 @@ contextBridge.exposeInMainWorld('zapdesk', {
   onLoadFinished: (callback: () => void) => subscribe<void>('load:finished', callback),
   onWhatsAppCommand: (callback: (command: 'reload') => void) => subscribe<'reload'>('whatsapp:command', callback)
 });
+
+contextBridge.exposeInMainWorld('whatsappPreloadPath', path.join(__dirname, 'whatsapp.cjs'));
