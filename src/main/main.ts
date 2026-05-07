@@ -833,22 +833,10 @@ function setupIpc(): void {
     return undefined;
   });
   ipcMain.on('shell:open-external-from-webview', (event, url: unknown) => {
-    console.log('[zapdesk:main] Received shell:open-external-from-webview', url, 'from', event.sender.getURL());
     if (typeof url !== 'string') return;
-    if (!isAllowedWhatsAppMainFrameUrl(event.sender.getURL())) {
-      console.log('[zapdesk:main] Sender URL not allowed:', event.sender.getURL());
-      return;
-    }
+    if (!isAllowedWhatsAppMainFrameUrl(event.sender.getURL())) return;
 
     openSafeExternalUrl(url);
-  });
-  ipcMain.on('zapdesk-webview-debug', (event, payload: unknown) => {
-    if (!payload || typeof payload !== 'object') return;
-
-    debugLinkEvent('webview-debug', {
-      senderUrl: event.sender.getURL(),
-      ...(payload as Record<string, unknown>)
-    });
   });
 
   app.on('web-contents-created', (_event, contents) => {
