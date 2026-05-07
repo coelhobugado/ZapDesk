@@ -39,6 +39,8 @@ Full releases page:
 - Optional start with Windows.
 - Local settings screen.
 - External links open in the default browser.
+- Optional spell checker with suggestions in the context menu.
+- Automatic updates through GitHub Releases.
 - External navigation protection.
 
 ## Shortcuts
@@ -117,7 +119,7 @@ build          Installer icon
 
 ## Updates
 
-The `appId` should remain `com.zapdesk.app`. For new versions, change only `version` in `package.json`; this allows the installer to replace the existing installation instead of creating a separate app.
+The `appId` should remain `com.zapdesk.app`. For new versions, update `version` in `package.json`, build the installer with `npm run dist`, and publish a release with the installer, the `.blockmap`, and `latest.yml`. Those three files let installed apps detect and download updates.
 
 The local WhatsApp session is stored in the user's app data and is not removed during updates.
 
