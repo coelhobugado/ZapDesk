@@ -20,6 +20,7 @@ desktop.ini
 *.local
 *.tmp
 *.bak
+README_AUDITORIA.md
 
 # Electron/runtime data must never be committed.
 Crashpad/
