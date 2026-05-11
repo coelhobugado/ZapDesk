@@ -73,6 +73,7 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let unreadCount = 0;
+let lastUnreadTitle = '';
 let lastAlertedUnreadCount = 0;
 let lastConnectionState: ConnectionState = 'unknown';
 let defaultTrayIcon: NativeImage | null = null;
@@ -603,9 +604,12 @@ function registerShortcuts(): void {
 }
 
 function updateUnreadCount(count: number, title = 'WhatsApp'): void {
-  unreadCount = count;
   const cleanTitle = cleanWhatsAppTitle(title);
   const appTitle = count > 0 ? `(${count}) ZapDesk - ${cleanTitle}` : `ZapDesk - ${cleanTitle}`;
+  if (count === unreadCount && appTitle === lastUnreadTitle) return;
+
+  unreadCount = count;
+  lastUnreadTitle = appTitle;
   mainWindow?.setTitle(appTitle);
   tray?.setToolTip(count > 0 ? `ZapDesk - ${count} mensagens nao lidas` : 'ZapDesk');
   updateUnreadVisuals(count);
@@ -622,14 +626,13 @@ function maybeAlertUnreadIncrease(count: number): void {
 
   if (count <= lastAlertedUnreadCount || count <= 0) return;
   lastAlertedUnreadCount = count;
+  if (!getSettings().notifications) return;
 
   mainWindow?.flashFrame(true);
 }
 
 function updateUnreadVisuals(count: number): void {
-  if (count > 0) {
-    mainWindow?.flashFrame(true);
-  } else {
+  if (count <= 0) {
     mainWindow?.setOverlayIcon(null, '');
     mainWindow?.flashFrame(false);
   }
