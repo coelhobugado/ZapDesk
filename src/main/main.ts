@@ -2,7 +2,6 @@ import {
   app,
   BrowserWindow,
   Menu,
-  Notification,
   Tray,
   globalShortcut,
   ipcMain,
@@ -74,7 +73,7 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let unreadCount = 0;
-let lastNotifiedCount = 0;
+let lastAlertedUnreadCount = 0;
 let lastConnectionState: ConnectionState = 'unknown';
 let defaultTrayIcon: NativeImage | null = null;
 let updateStatus: AppUpdateStatus = {
@@ -135,6 +134,11 @@ function isWhatsAppOwnedNavigationUrl(rawUrl: string): boolean {
   }
 
   return false;
+}
+
+function isAllowedWhatsAppPermissionTarget(webContents: WebContents | null, requestingOrigin?: string): boolean {
+  if (webContents && isAllowedWhatsAppMainFrameUrl(webContents.getURL())) return true;
+  return Boolean(requestingOrigin && isAllowedWhatsAppMainFrameUrl(requestingOrigin));
 }
 
 function iconPath(): string {
@@ -209,6 +213,13 @@ function configurePersistentSession(): void {
   session.defaultSession.setUserAgent(cleanUserAgent);
   whatsappSession.setUserAgent(cleanUserAgent);
 
+  whatsappSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
+    if (!isAllowedWhatsAppPermissionTarget(webContents, requestingOrigin)) return false;
+    if (permission === 'notifications') return getSettings().notifications;
+
+    return false;
+  });
+
   whatsappSession.setPermissionRequestHandler((webContents, permission, callback) => {
     const requestUrl = webContents.getURL();
     if (!isAllowedWhatsAppMainFrameUrl(requestUrl)) {
@@ -217,7 +228,7 @@ function configurePersistentSession(): void {
     }
 
     if (permission === 'notifications') {
-      callback(true);
+      callback(getSettings().notifications);
       return;
     }
 
@@ -376,6 +387,7 @@ function updateTrayMenu(): void {
 
 function showWindow(): void {
   if (!mainWindow) createWindow();
+  if (mainWindow?.isMinimized()) mainWindow.restore();
   mainWindow?.show();
   mainWindow?.focus();
 }
@@ -417,7 +429,7 @@ async function clearSession(): Promise<void> {
   await whatsappSession.clearStorageData();
   await whatsappSession.clearCache();
   unreadCount = 0;
-  lastNotifiedCount = 0;
+  lastAlertedUnreadCount = 0;
   updateUnreadCount(0, 'ZapDesk');
   reloadWhatsApp();
 }
@@ -596,24 +608,13 @@ function updateUnreadCount(count: number, title = 'ZapDesk'): void {
   mainWindow?.webContents.send('unread:changed', { unreadCount: count, title: appTitle } satisfies UnreadPayload);
 }
 
-function maybeNotify(count: number): void {
-  if (count < lastNotifiedCount) {
-    lastNotifiedCount = count;
+function maybeAlertUnreadIncrease(count: number): void {
+  if (count < lastAlertedUnreadCount) {
+    lastAlertedUnreadCount = count;
   }
 
-  if (!getSettings().notifications || count <= lastNotifiedCount || count <= 0) return;
-  lastNotifiedCount = count;
-
-  if (Notification.isSupported()) {
-    const notification = new Notification({
-      title: 'ZapDesk',
-      body: count === 1 ? 'Voce tem uma nova mensagem no WhatsApp.' : `Voce tem ${count} mensagens nao lidas no WhatsApp.`,
-      icon: iconPath(),
-      silent: false
-    });
-    notification.on('click', showWindow);
-    notification.show();
-  }
+  if (count <= lastAlertedUnreadCount || count <= 0) return;
+  lastAlertedUnreadCount = count;
 
   mainWindow?.flashFrame(true);
 }
@@ -828,9 +829,9 @@ function configureWebContentsSecurity(webContents: WebContents): void {
 
     const nextUnread = parseUnreadFromTitle(title);
     updateUnreadCount(nextUnread, title);
-    maybeNotify(nextUnread);
+    maybeAlertUnreadIncrease(nextUnread);
     if (nextUnread === 0) {
-      lastNotifiedCount = 0;
+      lastAlertedUnreadCount = 0;
     }
   });
 
@@ -879,6 +880,12 @@ function setupIpc(): void {
   ipcMain.handle('shell:open-external', (_event, url: string) => {
     openSafeExternalUrl(url);
     return undefined;
+  });
+  ipcMain.on('whatsapp:notification-clicked', (event) => {
+    if (!isAllowedWhatsAppMainFrameUrl(event.sender.getURL())) return;
+
+    showWindow();
+    event.sender.focus();
   });
   ipcMain.on('shell:open-external-from-webview', (event, url: unknown) => {
     if (typeof url !== 'string') return;
