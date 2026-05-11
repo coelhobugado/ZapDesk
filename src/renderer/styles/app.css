@@ -431,6 +431,11 @@ button {
   background: color-mix(in srgb, var(--panel-hover) 48%, transparent);
 }
 
+.toggle-row:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .toggle-icon {
   display: grid;
   place-items: center;
@@ -464,6 +469,8 @@ button {
 
 .toggle-row input {
   position: absolute;
+  width: 1px;
+  height: 1px;
   opacity: 0;
   pointer-events: none;
 }

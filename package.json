@@ -1,6 +1,6 @@
 {
   "name": "zapdesk",
-  "version": "1.0.26",
+  "version": "1.0.27",
   "description": "Cliente desktop alternativo e estavel para WhatsApp Web.",
   "author": "ZapDesk",
   "private": true,
@@ -57,7 +57,8 @@
       {
         "provider": "github",
         "owner": "coelhobugado",
-        "repo": "ZapDesk"
+        "repo": "ZapDesk",
+        "releaseType": "release"
       }
     ],
     "files": [

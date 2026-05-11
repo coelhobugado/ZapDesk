@@ -6,6 +6,9 @@ describe('unread title parsing', () => {
     expect(parseUnreadFromTitle('(1) WhatsApp')).toBe(1);
     expect(parseUnreadFromTitle('(42) WhatsApp')).toBe(42);
     expect(parseUnreadFromTitle('(99+) WhatsApp')).toBe(99);
+    expect(parseUnreadFromTitle('(1000) WhatsApp')).toBe(1000);
+    expect(parseUnreadFromTitle('(1.234) WhatsApp')).toBe(1234);
+    expect(parseUnreadFromTitle('(1,234) WhatsApp')).toBe(1234);
   });
 
   it('returns zero for titles without a leading unread count', () => {
@@ -17,6 +20,7 @@ describe('unread title parsing', () => {
   it('removes the unread prefix from the window title', () => {
     expect(cleanWhatsAppTitle('(12) WhatsApp')).toBe('WhatsApp');
     expect(cleanWhatsAppTitle('(99+) WhatsApp')).toBe('WhatsApp');
+    expect(cleanWhatsAppTitle('(1.234) WhatsApp')).toBe('WhatsApp');
     expect(cleanWhatsAppTitle('')).toBe('WhatsApp');
   });
 });
