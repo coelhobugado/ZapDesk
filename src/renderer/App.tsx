@@ -23,6 +23,8 @@ const defaultUpdateStatus: AppUpdateStatus = {
   currentVersion: '0.0.0'
 };
 
+const ignoredLoadErrorCodes = new Set([-3]);
+
 export function App() {
   const webviewRef = useRef<WebviewTag | null>(null);
   const hasShownWhatsAppRef = useRef(false);
@@ -68,11 +70,17 @@ export function App() {
 
     if (loadingWatchdogRef.current) {
       window.clearTimeout(loadingWatchdogRef.current);
+      loadingWatchdogRef.current = null;
     }
+
+    if (!showOverlay) return;
 
     loadingWatchdogRef.current = window.setTimeout(() => {
       setSlowLoad(true);
-      setLoading(false);
+      loadingWatchdogRef.current = window.setTimeout(() => {
+        setLoading(false);
+        loadingWatchdogRef.current = null;
+      }, 20000);
     }, 10000);
   }, []);
 
@@ -190,10 +198,11 @@ export function App() {
       finishLoading();
     };
     const handleFail = (event: Electron.DidFailLoadEvent) => {
-      if (event.isMainFrame) {
-        setLoadError(`${event.errorDescription} (${event.errorCode})`);
-        setLoading(false);
-      }
+      if (!event.isMainFrame) return;
+      if (ignoredLoadErrorCodes.has(event.errorCode)) return;
+
+      setLoadError(`${event.errorDescription} (${event.errorCode})`);
+      setLoading(false);
     };
     if (pendingWebviewReloadRef.current) {
       pendingWebviewReloadRef.current = false;
@@ -210,7 +219,6 @@ export function App() {
       }
       
       if (probeAttempts > 35) {
-        console.warn('[zapdesk] Probe attempts exceeded 35. Forcing finishLoading.');
         window.clearInterval(interactiveProbe);
         finishLoading();
         return;
@@ -248,7 +256,6 @@ export function App() {
           false
         )
         .then((probe) => {
-          console.info('[zapdesk] Probe state:', probe);
           if (probe?.ready) {
             finishLoading();
             return;
@@ -263,9 +270,7 @@ export function App() {
             );
           }
         })
-        .catch((err) => {
-          console.warn('[zapdesk] Probe failed:', err);
-        });
+        .catch(() => undefined);
     }, 1200);
 
     webviewElement.addEventListener('did-start-loading', handleStart);

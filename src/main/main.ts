@@ -85,6 +85,7 @@ let checkingForUpdate = false;
 let updateReadyToInstall = false;
 const trayIconSize = process.platform === 'win32' ? 32 : 22;
 let pendingReload = false;
+const ignoredLoadErrorCodes = new Set([-3]);
 
 function cleanBrowserUserAgent(userAgent: string): string {
   let cleaned = userAgent
@@ -136,9 +137,15 @@ function isWhatsAppOwnedNavigationUrl(rawUrl: string): boolean {
   return false;
 }
 
-function isAllowedWhatsAppPermissionTarget(webContents: WebContents | null, requestingOrigin?: string): boolean {
+function isAllowedWhatsAppPermissionTarget(
+  webContents: WebContents | null,
+  requestingUrl?: string,
+  isMainFrame = true
+): boolean {
+  if (!isMainFrame) return false;
+  if (requestingUrl && isAllowedWhatsAppMainFrameUrl(requestingUrl)) return true;
   if (webContents && isAllowedWhatsAppMainFrameUrl(webContents.getURL())) return true;
-  return Boolean(requestingOrigin && isAllowedWhatsAppMainFrameUrl(requestingOrigin));
+  return false;
 }
 
 function iconPath(): string {
@@ -213,16 +220,16 @@ function configurePersistentSession(): void {
   session.defaultSession.setUserAgent(cleanUserAgent);
   whatsappSession.setUserAgent(cleanUserAgent);
 
-  whatsappSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
-    if (!isAllowedWhatsAppPermissionTarget(webContents, requestingOrigin)) return false;
+  whatsappSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    const requestingUrl = details.requestingUrl ?? details.securityOrigin ?? requestingOrigin;
+    if (!isAllowedWhatsAppPermissionTarget(webContents, requestingUrl, details.isMainFrame)) return false;
     if (permission === 'notifications') return getSettings().notifications;
 
     return false;
   });
 
-  whatsappSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    const requestUrl = webContents.getURL();
-    if (!isAllowedWhatsAppMainFrameUrl(requestUrl)) {
+  whatsappSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    if (!isAllowedWhatsAppPermissionTarget(webContents, details.requestingUrl, details.isMainFrame)) {
       callback(false);
       return;
     }
@@ -430,7 +437,7 @@ async function clearSession(): Promise<void> {
   await whatsappSession.clearCache();
   unreadCount = 0;
   lastAlertedUnreadCount = 0;
-  updateUnreadCount(0, 'ZapDesk');
+  updateUnreadCount(0);
   reloadWhatsApp();
 }
 
@@ -595,7 +602,7 @@ function registerShortcuts(): void {
   }
 }
 
-function updateUnreadCount(count: number, title = 'ZapDesk'): void {
+function updateUnreadCount(count: number, title = 'WhatsApp'): void {
   unreadCount = count;
   const cleanTitle = cleanWhatsAppTitle(title);
   const appTitle = count > 0 ? `(${count}) ZapDesk - ${cleanTitle}` : `ZapDesk - ${cleanTitle}`;
@@ -839,6 +846,7 @@ function configureWebContentsSecurity(webContents: WebContents): void {
     debugLinkEvent('did-fail-load', { errorCode, errorDescription, validatedURL, isMainFrame });
 
     if (!isMainFrame) return;
+    if (ignoredLoadErrorCodes.has(errorCode)) return;
 
     if (isAllowedWhatsAppMainFrameUrl(validatedURL)) {
       mainWindow?.webContents.send('load:failed', `${errorDescription} (${errorCode})`);

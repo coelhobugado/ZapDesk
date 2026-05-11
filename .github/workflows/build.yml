@@ -1,5 +1,8 @@
 name: Build and Release
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   pull_request:
   push:
@@ -25,6 +28,15 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
 
       - name: Build
         run: npm run build
