@@ -33,9 +33,9 @@ export function App() {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [slowLoad, setSlowLoad] = useState(false);
-  const [loadingDetails, setLoadingDetails] = useState('Conectando ao WhatsApp Web com sua sessao local.');
+  const [loadingDetails, setLoadingDetails] = useState('Recarregando a sessao local.');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [connection, setConnection] = useState<ConnectionState>(navigator.onLine ? 'online' : 'offline');
   const [unread, setUnread] = useState(0);
@@ -48,7 +48,7 @@ export function App() {
     hasShownWhatsAppRef.current = true;
     explicitReloadRef.current = false;
     setSlowLoad(false);
-    setLoadingDetails('Conectando ao WhatsApp Web com sua sessao local.');
+    setLoadingDetails('Recarregando a sessao local.');
     setLoading(false);
     setLoadError(null);
 
@@ -58,13 +58,13 @@ export function App() {
     }
   }, []);
 
-  const startLoading = useCallback((force = false) => {
-    if (!force && hasShownWhatsAppRef.current) return;
+  const startLoading = useCallback((showOverlay = false) => {
+    if (!showOverlay && hasShownWhatsAppRef.current) return;
 
     setLoadError(null);
     setSlowLoad(false);
-    setLoadingDetails('Conectando ao WhatsApp Web com sua sessao local.');
-    setLoading(true);
+    setLoadingDetails('Recarregando a sessao local.');
+    setLoading(showOverlay);
 
     if (loadingWatchdogRef.current) {
       window.clearTimeout(loadingWatchdogRef.current);
@@ -72,7 +72,8 @@ export function App() {
 
     loadingWatchdogRef.current = window.setTimeout(() => {
       setSlowLoad(true);
-    }, 7000);
+      setLoading(false);
+    }, 10000);
   }, []);
 
   const reload = useCallback(() => {
@@ -133,6 +134,7 @@ export function App() {
     });
     const unsubFinished = window.zapdesk.onLoadFinished(() => {
       setConnection('online');
+      finishLoading();
     });
     const unsubCommand = window.zapdesk.onWhatsAppCommand((command) => {
       if (command === 'reload') {
@@ -185,6 +187,7 @@ export function App() {
     };
     const handleFinish = () => {
       setConnection('online');
+      finishLoading();
     };
     const handleFail = (event: Electron.DidFailLoadEvent) => {
       if (event.isMainFrame) {
@@ -282,7 +285,7 @@ export function App() {
   }, [finishLoading, reload, startLoading, webviewElement]);
 
   useEffect(() => {
-    startLoading(true);
+    startLoading(false);
 
     return () => {
       if (loadingWatchdogRef.current) {
