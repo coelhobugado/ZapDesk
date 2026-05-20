@@ -31,9 +31,9 @@ ZapDesk e um cliente desktop alternativo para usar o WhatsApp Web no Windows com
 
 Ele nasceu para quem depende do WhatsApp no computador, mas nao quer deixar o atendimento perdido em uma aba do navegador, nem sofrer com o aplicativo oficial travando, pesando ou falhando em momentos importantes.
 
-Com o ZapDesk, o WhatsApp Web fica em uma janela propria, com icone na bandeja, notificacoes nativas, contador de mensagens, atalhos globais, sessao persistente, corretor ortografico e atualizacoes automaticas.
+Com o ZapDesk, o WhatsApp Web fica em uma janela propria, com icone na bandeja, notificacoes nativas, contador de mensagens, atalhos globais, sessao persistente, multi-contas, respostas rapidas, agendamentos locais, corretor ortografico e atualizacoes automaticas.
 
-> ZapDesk nao automatiza mensagens, nao faz disparo em massa, nao envia spam e nao tenta burlar regras do WhatsApp. Ele e apenas um cliente desktop alternativo para uso normal do WhatsApp Web.
+> ZapDesk nao faz disparo em massa, nao envia spam e nao tenta burlar regras do WhatsApp. Recursos como respostas rapidas e agendamentos locais foram pensados para produtividade individual e uso responsavel do WhatsApp Web.
 
 ## Baixar
 
@@ -64,6 +64,9 @@ ZapDesk-<versao>-Setup.exe
 | --- | --- |
 | Janela dedicada para WhatsApp Web | Mantem o WhatsApp separado do navegador e mais facil de encontrar. |
 | Sessao persistente | Evita escanear QR Code a cada abertura. |
+| Multi-contas isoladas | Crie contas separadas, cada uma com sua propria sessao persistente. |
+| Respostas rapidas | Cadastre snippets e insira textos frequentes no chat atual. |
+| Agendamento local de mensagens | Programe mensagens para contatos informados por telefone, usando a sessao da conta selecionada. |
 | Bandeja do Windows | Abra, oculte, recarregue, verifique atualizacoes ou saia pelo tray icon. |
 | Minimizar ao fechar | O botao X pode esconder o app na bandeja em vez de encerrar. |
 | Notificacoes nativas | Receba alertas do Windows quando houver novas mensagens. |
@@ -87,6 +90,8 @@ ZapDesk-<versao>-Setup.exe
 5. Escaneie o QR Code do WhatsApp Web, se solicitado.
 6. Use normalmente. A sessao fica salva localmente.
 
+Para usar mais de uma conta, clique no botao `+` na barra lateral e escaneie o QR Code da nova sessao. Para abrir respostas rapidas e agendamentos, use o menu de tres pontos e selecione `Ferramentas`.
+
 ## Atalhos
 
 | Atalho | Acao |
@@ -99,7 +104,9 @@ ZapDesk-<versao>-Setup.exe
 
 O ZapDesk usa GitHub Releases com `electron-updater`.
 
-Quando uma nova versao e publicada corretamente, o app instalado consegue detectar, baixar e instalar a atualizacao. Para isso, cada release precisa conter:
+Quando uma nova versao e publicada corretamente, o app instalado consegue detectar, baixar e instalar a atualizacao pelo proprio ZapDesk. O usuario pode verificar manualmente em `Configuracoes > Verificar atualizacoes` ou pelo menu da bandeja em `Verificar atualizacoes`.
+
+Para isso, cada release precisa conter:
 
 - `ZapDesk-<versao>-Setup.exe`
 - `ZapDesk-<versao>-Setup.exe.blockmap`
@@ -112,6 +119,8 @@ com.zapdesk.app
 ```
 
 Manter esse identificador garante que o Windows e o atualizador reconhecam o aplicativo como a mesma instalacao entre versoes.
+
+Para publicar uma versao que atualize o app instalado, aumente `version` em `package.json`, rode `npm run dist` no Windows e publique os tres artefatos acima em uma GitHub Release marcada como release final, nao draft.
 
 ## Privacidade E Seguranca
 
@@ -213,7 +222,6 @@ Ideias naturais para evoluir o ZapDesk:
 - temas visuais adicionais;
 - instalador assinado digitalmente;
 - pagina de documentacao com capturas de tela;
-- suporte opcional a multiplos perfis;
 - melhorias de acessibilidade;
 - telemetria local opcional apenas para diagnostico, sem conteudo de mensagens.
 
@@ -229,9 +237,11 @@ Antes de abrir um pull request:
 4. Descreva claramente o problema resolvido.
 5. Evite recursos de automacao abusiva, disparo em massa ou qualquer coisa que viole regras do WhatsApp.
 
-## Sobre Automacoes
+## Sobre Automacoes E Uso Responsavel
 
-Este projeto nao usa `whatsapp-web.js` nesta versao. Existe apenas um ponto de extensao em `src/main/optional/whatsappWebJsAdapter.ts` para uma futura integracao opcional, sem implementar spam, disparo em massa ou qualquer uso abusivo.
+Este projeto nao usa `whatsapp-web.js` nesta versao. Existe apenas um ponto de extensao em `src/main/optional/whatsappWebJsAdapter.ts` para uma futura integracao opcional.
+
+Os agendamentos atuais usam o proprio WhatsApp Web local do usuario. Eles nao sao uma fila em servidor, nao fazem disparo em massa e podem falhar se o WhatsApp Web mudar a interface, se a conta estiver desconectada ou se o computador estiver offline.
 
 ## Aviso
 

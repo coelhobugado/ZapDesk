@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AppSettings, AppUpdateStatus, ConnectionState, UnreadPayload } from '../shared/settings.js';
+import type { AppSettings, AppUpdateStatus, ConnectionState, UnreadPayload, Account, Snippet, ScheduledMessage } from '../shared/settings.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,7 +33,23 @@ contextBridge.exposeInMainWorld('zapdesk', {
   onLoadFailed: (callback: (message: string) => void) => subscribe<string>('load:failed', callback),
   onLoadStarted: (callback: () => void) => subscribe<void>('load:started', callback),
   onLoadFinished: (callback: () => void) => subscribe<void>('load:finished', callback),
-  onWhatsAppCommand: (callback: (command: 'reload') => void) => subscribe<'reload'>('whatsapp:command', callback)
+  onWhatsAppCommand: (callback: (command: 'reload') => void) => subscribe<'reload'>('whatsapp:command', callback),
+  onWhatsAppReady: (callback: () => void) => subscribe<void>('whatsapp:ready-state', callback),
+
+  getAccounts: () => ipcRenderer.invoke('accounts:get'),
+  saveAccounts: (accounts: Account[]) => ipcRenderer.invoke('accounts:save', accounts),
+  getActiveAccountId: () => ipcRenderer.invoke('accounts:getActiveId'),
+  setActiveAccountId: (id: string) => ipcRenderer.invoke('accounts:setActiveId', id),
+  onActiveAccountChanged: (callback: (id: string) => void) => subscribe<string>('accounts:activeChanged', callback),
+
+  getSnippets: () => ipcRenderer.invoke('snippets:get'),
+  saveSnippets: (snippets: Snippet[]) => ipcRenderer.invoke('snippets:save', snippets),
+  onSnippetsChanged: (callback: (snippets: Snippet[]) => void) => subscribe<Snippet[]>('snippets:changed', callback),
+
+  getSchedules: () => ipcRenderer.invoke('schedules:get'),
+  saveSchedules: (schedules: ScheduledMessage[]) => ipcRenderer.invoke('schedules:save', schedules),
+  onSchedulesChanged: (callback: (schedules: ScheduledMessage[]) => void) => subscribe<ScheduledMessage[]>('schedules:changed', callback),
+  onScheduleSendRequest: (callback: (message: ScheduledMessage) => void) => subscribe<ScheduledMessage>('schedules:send-request', callback)
 });
 
 contextBridge.exposeInMainWorld('whatsappPreloadPath', path.join(__dirname, 'whatsapp.cjs'));

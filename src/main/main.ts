@@ -12,7 +12,8 @@ import {
   WebContents,
   type ContextMenuParams,
   type MenuItemConstructorOptions,
-  type NativeImage
+  type NativeImage,
+  type Session
 } from 'electron';
 import electronUpdater, { type ProgressInfo, type UpdateInfo } from 'electron-updater';
 import Store from 'electron-store';
@@ -23,7 +24,10 @@ import {
   type AppSettings,
   type AppUpdateStatus,
   type ConnectionState,
-  type UnreadPayload
+  type UnreadPayload,
+  type Account,
+  type Snippet,
+  type ScheduledMessage
 } from '../shared/settings.js';
 import {
   isAllowedWhatsAppMainFrameUrl,
@@ -40,6 +44,13 @@ const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 const appUserModelId = 'com.zapdesk.app';
 const { autoUpdater } = electronUpdater;
 const debugLinks = process.env.ZAPDESK_DEBUG_LINKS === '1';
+const configuredSessionPartitions = new Set<string>();
+const telemetryPatterns = [
+  '*://graph.facebook.com/*',
+  '*://*.facebook.com/tr/*',
+  '*://web.whatsapp.com/logging/*',
+  '*://*.whatsapp.net/logging/*'
+];
 
 if (isDev) {
   const devProfile = process.env.ZAPDESK_DEV_PROFILE ?? 'default';
@@ -61,13 +72,28 @@ const singleInstanceLock = app.requestSingleInstanceLock();
 
 type StoreSchema = {
   settings: AppSettings;
+  accounts: Account[];
+  activeAccountId: string;
+  snippets: Snippet[];
+  scheduledMessages: ScheduledMessage[];
 };
 
 const store = new Store<StoreSchema>({
   defaults: {
-    settings: defaultSettings
+    settings: defaultSettings,
+    accounts: [
+      { id: 'default', name: 'Principal', partition: 'persist:zapdesk-whatsapp' }
+    ],
+    activeAccountId: 'default',
+    snippets: [
+      { id: '1', shortcut: '/oi', text: 'Ola! Como posso te ajudar hoje?' },
+      { id: '2', shortcut: '/suporte', text: 'Um momento, por favor. Estou transferindo o seu atendimento para o nosso suporte tecnico.' }
+    ],
+    scheduledMessages: []
   }
 });
+
+const defaultAccount: Account = { id: 'default', name: 'Principal', partition: whatsappPartition };
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -166,6 +192,22 @@ function getSettings(): AppSettings {
   return { ...defaultSettings, ...store.get('settings') };
 }
 
+function getAccounts(): Account[] {
+  const accounts = store.get('accounts') ?? [];
+  const hasDefault = accounts.some((account) => account.id === defaultAccount.id);
+  return hasDefault ? accounts : [defaultAccount, ...accounts];
+}
+
+function getActiveAccount(): Account {
+  const activeAccountId = store.get('activeAccountId') ?? defaultAccount.id;
+  return getAccounts().find((account) => account.id === activeAccountId) ?? defaultAccount;
+}
+
+function isKnownAccountPartition(partition?: string): boolean {
+  if (!partition) return false;
+  return getAccounts().some((account) => account.partition === partition);
+}
+
 function saveSettings(settings: Partial<AppSettings>): AppSettings {
   const next = { ...getSettings(), ...settings };
   store.set('settings', next);
@@ -186,8 +228,7 @@ function saveSettings(settings: Partial<AppSettings>): AppSettings {
   return next;
 }
 
-function applySpellCheckerSettings(settings = getSettings()): void {
-  const whatsappSession = session.fromPartition(whatsappPartition);
+function applySpellCheckerSettingsToSession(whatsappSession: Session, settings = getSettings()): void {
   whatsappSession.setSpellCheckerEnabled(settings.spellChecker);
 
   if (!settings.spellChecker) return;
@@ -200,26 +241,9 @@ function applySpellCheckerSettings(settings = getSettings()): void {
   }
 }
 
-function applySettings(settings = getSettings()): void {
-  mainWindow?.setAlwaysOnTop(settings.alwaysOnTop);
-  applySpellCheckerSettings(settings);
-  if (app.isPackaged) {
-    app.setLoginItemSettings({
-      openAtLogin: settings.startWithWindows,
-      path: process.execPath
-    });
-  }
-  updateTrayMenu();
-}
-
-function configurePersistentSession(): void {
-  const whatsappSession = session.fromPartition(whatsappPartition);
-  applySpellCheckerSettings();
-  
-  // Obter um User Agent padrão do Electron e limpar referências ao próprio app/Electron
-  const cleanUserAgent = cleanBrowserUserAgent(session.defaultSession.getUserAgent());
-  session.defaultSession.setUserAgent(cleanUserAgent);
-  whatsappSession.setUserAgent(cleanUserAgent);
+function configureWhatsAppSessionHandlers(whatsappSession: Session, partition: string): void {
+  if (configuredSessionPartitions.has(partition)) return;
+  configuredSessionPartitions.add(partition);
 
   whatsappSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
     const requestingUrl = details.requestingUrl ?? details.securityOrigin ?? requestingOrigin;
@@ -267,14 +291,12 @@ function configurePersistentSession(): void {
     callback(false);
   });
 
-  // Escuta nativa para Downloads
   whatsappSession.on('will-download', (_event, item, webContents) => {
     debugLinkEvent('will-download', {
       url: item.getURL(),
       filename: item.getFilename(),
       webContentsUrl: webContents.getURL()
     });
-    // Definir que mostre um SaveDialog para o usuário e defina o nome base
     item.setSaveDialogOptions({
       title: 'Salvar Arquivo',
       defaultPath: path.join(app.getPath('downloads'), item.getFilename())
@@ -298,7 +320,50 @@ function configurePersistentSession(): void {
     });
   });
 
-  // Removido o whatsappSession.webRequest.onBeforeSendHeaders para evitar gargalos na rede
+  whatsappSession.webRequest.onBeforeRequest({ urls: telemetryPatterns }, (_details, callback) => {
+    callback({ cancel: true });
+  });
+}
+
+function applySpellCheckerSettings(settings = getSettings()): void {
+  for (const account of getAccounts()) {
+    applySpellCheckerSettingsToSession(session.fromPartition(account.partition), settings);
+  }
+}
+
+function configureWhatsAppSession(partition: string, cleanUserAgent: string): void {
+  const whatsappSession = session.fromPartition(partition);
+  applySpellCheckerSettingsToSession(whatsappSession);
+  whatsappSession.setUserAgent(cleanUserAgent);
+  configureWhatsAppSessionHandlers(whatsappSession, partition);
+}
+
+function applySettings(settings = getSettings()): void {
+  mainWindow?.setAlwaysOnTop(settings.alwaysOnTop);
+  applySpellCheckerSettings(settings);
+  if (app.isPackaged) {
+    app.setLoginItemSettings({
+      openAtLogin: settings.startWithWindows,
+      path: process.execPath
+    });
+  }
+  updateTrayMenu();
+}
+
+function configurePersistentSession(): void {
+  // Obter um User Agent padrão do Electron e limpar referências ao próprio app/Electron
+  const cleanUserAgent = cleanBrowserUserAgent(session.defaultSession.getUserAgent());
+  session.defaultSession.setUserAgent(cleanUserAgent);
+
+  for (const account of getAccounts()) {
+    configureWhatsAppSession(account.partition, cleanUserAgent);
+
+    // Limpar cache de rede obsoleto no startup para manter a performance de carregamento.
+    void session.fromPartition(account.partition).clearCache().catch((err) => {
+      console.error(`Falha ao limpar cache do WhatsApp (${account.id}):`, err);
+    });
+  }
+
 }
 
 function createWindow(): void {
@@ -322,7 +387,8 @@ function createWindow(): void {
       // preload is bundled separately.
       sandbox: false,
       webviewTag: true,
-      spellcheck: false
+      spellcheck: false,
+      backgroundThrottling: true
     }
   });
 
@@ -433,7 +499,7 @@ async function clearSession(): Promise<void> {
     if (result.response !== 0) return;
   }
 
-  const whatsappSession = session.fromPartition(whatsappPartition);
+  const whatsappSession = session.fromPartition(getActiveAccount().partition);
   await whatsappSession.clearStorageData();
   await whatsappSession.clearCache();
   unreadCount = 0;
@@ -751,7 +817,8 @@ function configureWebContentsSecurity(webContents: WebContents): void {
       return;
     }
 
-    params.partition = whatsappPartition;
+    const requestedPartition = params.partition;
+    params.partition = isKnownAccountPartition(requestedPartition) ? requestedPartition : whatsappPartition;
     params.allowpopups = 'true';
     (params as { useragent?: string }).useragent = cleanBrowserUserAgent(session.defaultSession.getUserAgent());
     webPreferences.preload = whatsappWebviewPreloadPath();
@@ -760,6 +827,7 @@ function configureWebContentsSecurity(webContents: WebContents): void {
     webPreferences.sandbox = true;
     webPreferences.spellcheck = getSettings().spellChecker;
     webPreferences.transparent = false;
+    webPreferences.backgroundThrottling = true;
   });
 
   webContents.on('context-menu', (_event, params) => {
@@ -892,11 +960,52 @@ function setupIpc(): void {
     openSafeExternalUrl(url);
     return undefined;
   });
+
+  // Handlers para Multi-Contas
+  ipcMain.handle('accounts:get', () => getAccounts());
+  ipcMain.handle('accounts:save', (_event, accounts: Account[]) => {
+    store.set('accounts', accounts);
+    const cleanUserAgent = cleanBrowserUserAgent(session.defaultSession.getUserAgent());
+    for (const account of accounts) {
+      configureWhatsAppSession(account.partition, cleanUserAgent);
+    }
+    return accounts;
+  });
+  ipcMain.handle('accounts:getActiveId', () => store.get('activeAccountId') || 'default');
+  ipcMain.handle('accounts:setActiveId', (_event, id: string) => {
+    if (!getAccounts().some((account) => account.id === id)) {
+      return store.get('activeAccountId') || 'default';
+    }
+    store.set('activeAccountId', id);
+    mainWindow?.webContents.send('accounts:activeChanged', id);
+    return id;
+  });
+
+  // Handlers para Respostas Rapidas (Snippets)
+  ipcMain.handle('snippets:get', () => store.get('snippets') || []);
+  ipcMain.handle('snippets:save', (_event, snippets: Snippet[]) => {
+    store.set('snippets', snippets);
+    mainWindow?.webContents.send('snippets:changed', snippets);
+    return snippets;
+  });
+
+  // Handlers para Agendamento de Mensagens
+  ipcMain.handle('schedules:get', () => store.get('scheduledMessages') || []);
+  ipcMain.handle('schedules:save', (_event, schedules: ScheduledMessage[]) => {
+    store.set('scheduledMessages', schedules);
+    mainWindow?.webContents.send('schedules:changed', schedules);
+    return schedules;
+  });
   ipcMain.on('whatsapp:notification-clicked', (event) => {
     if (!isAllowedWhatsAppMainFrameUrl(event.sender.getURL())) return;
 
     showWindow();
     event.sender.focus();
+  });
+  ipcMain.on('whatsapp:ready', (event) => {
+    if (!isAllowedWhatsAppMainFrameUrl(event.sender.getURL())) return;
+
+    mainWindow?.webContents.send('whatsapp:ready-state', true);
   });
   ipcMain.on('shell:open-external-from-webview', (event, url: unknown) => {
     if (typeof url !== 'string') return;
@@ -911,6 +1020,34 @@ function setupIpc(): void {
       if (isAllowedWhatsAppMainFrameUrl(url)) setConnectionState('online');
     });
   });
+}
+
+function startScheduledMessageWorker(): void {
+  // Executar a cada 10 segundos para verificar agendamentos pendentes
+  setInterval(() => {
+    const schedules = store.get('scheduledMessages') || [];
+    const now = Date.now();
+    const pending = schedules.filter(
+      (s) => s.status === 'pending' && s.sendAt <= now
+    );
+
+    if (pending.length === 0) return;
+
+    for (const msg of pending) {
+      // Alterar status local para evitar envios duplos enquanto o renderer processa
+      const updatedSchedules = (store.get('scheduledMessages') || []).map((s) => {
+        if (s.id === msg.id) {
+          return { ...s, status: 'sending' as const };
+        }
+        return s;
+      });
+      store.set('scheduledMessages', updatedSchedules);
+      mainWindow?.webContents.send('schedules:changed', updatedSchedules);
+
+      // Enviar comando para o renderer principal processar o envio
+      mainWindow?.webContents.send('schedules:send-request', msg);
+    }
+  }, 10000);
 }
 
 if (!singleInstanceLock) {
@@ -929,6 +1066,7 @@ if (!singleInstanceLock) {
     createWindow();
     createTray();
     registerShortcuts();
+    startScheduledMessageWorker();
 
     if (getSettings().autoUpdate) {
       setTimeout(() => {

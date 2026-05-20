@@ -42,3 +42,25 @@ export type AppUpdateStatus = {
   percent?: number;
   message?: string;
 };
+
+export type Account = {
+  id: string;
+  name: string;
+  partition: string;
+};
+
+export type Snippet = {
+  id: string;
+  shortcut: string;
+  text: string;
+};
+
+export type ScheduledMessage = {
+  id: string;
+  accountId: string;
+  contactName: string;
+  text: string;
+  sendAt: number;
+  status: 'pending' | 'sending' | 'sent' | 'failed';
+  errorMessage?: string;
+};
