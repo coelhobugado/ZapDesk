@@ -47,6 +47,8 @@ export function App() {
   const [unread, setUnread] = useState(0);
   const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus>(defaultUpdateStatus);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [accountStatuses, setAccountStatuses] = useState<Record<string, 'ready' | 'qrcode' | 'loading' | 'offline'>>({});
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Estados das novas Features
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -213,9 +215,11 @@ export function App() {
     }
   };
 
+
   // Mudar conta ativa
   const selectAccount = async (id: string) => {
     if (id === activeAccountId) return;
+    setIsTransitioning(true);
     try {
       await window.zapdesk.setActiveAccountId(id);
       setActiveAccountId(id);
@@ -225,6 +229,7 @@ export function App() {
       startLoading(true);
     } catch {
       setActionError('Falha ao trocar de conta.');
+      setIsTransitioning(false);
     }
   };
 
@@ -235,10 +240,17 @@ export function App() {
 
     let finished = false;
 
+    const cleanupWebview = () => {
+      try {
+        webview.removeEventListener('dom-ready', handleDomReady);
+      } catch (e) {}
+    };
+
     // Timeout de 45 segundos para falhar caso nao consiga enviar
     const failsafeTimeout = window.setTimeout(async () => {
       if (finished) return;
       finished = true;
+      cleanupWebview();
 
       try {
         const current = await window.zapdesk.getSchedules();
@@ -263,6 +275,15 @@ export function App() {
           let attempts = 0;
           const interval = setInterval(() => {
             attempts += 1;
+            
+            // Verificar se a conta esta desconectada (presenca de QR Code)
+            const qrCode = document.querySelector('[data-testid="qrcode"]') || document.querySelector('canvas');
+            if (qrCode && !document.querySelector('[data-testid="chat-list"]') && !document.querySelector('#side')) {
+              clearInterval(interval);
+              resolve('logged_out');
+              return;
+            }
+
             const button =
               document.querySelector('[data-testid="send"]') ||
               document.querySelector('[data-icon="send"]')?.closest('button') ||
@@ -286,13 +307,21 @@ export function App() {
       void webview.executeJavaScript(clickScript).then(async (clicked) => {
         if (finished) return;
         finished = true;
+        cleanupWebview();
         window.clearTimeout(failsafeTimeout);
 
         try {
           const current = await window.zapdesk.getSchedules();
           const updated = current.map((s) => {
             if (s.id === msg.id) {
-              if (clicked) return { ...s, status: 'sent' as const, errorMessage: undefined };
+              if (clicked === true) return { ...s, status: 'sent' as const, errorMessage: undefined };
+              if (clicked === 'logged_out') {
+                return {
+                  ...s,
+                  status: 'failed' as const,
+                  errorMessage: 'Erro: a conta correspondente está desconectada. Conecte-a no painel lateral.'
+                };
+              }
               return { ...s, status: 'failed' as const, errorMessage: 'Nao foi possivel localizar o botao de envio.' };
             }
             return s;
@@ -306,6 +335,7 @@ export function App() {
       }).catch(async () => {
         if (finished) return;
         finished = true;
+        cleanupWebview();
         window.clearTimeout(failsafeTimeout);
 
         try {
@@ -377,6 +407,19 @@ export function App() {
       });
     });
 
+    const unsubAccountStatus = window.zapdesk.onAccountStatusChanged((payload) => {
+      setAccounts((prevAccounts) => {
+        const targetAcc = prevAccounts.find((a) => a.partition === payload.partition);
+        if (targetAcc) {
+          setAccountStatuses((prev) => ({
+            ...prev,
+            [targetAcc.id]: payload.status
+          }));
+        }
+        return prevAccounts;
+      });
+    });
+
     const online = () => setConnection('online');
     const offline = () => setConnection('offline');
     const closeQuickMenu = (event: MouseEvent) => {
@@ -409,6 +452,7 @@ export function App() {
       unsubSnippets();
       unsubSchedules();
       unsubSendRequest();
+      unsubAccountStatus();
       window.removeEventListener('online', online);
       window.removeEventListener('offline', offline);
       document.removeEventListener('mousedown', closeQuickMenu);
@@ -424,6 +468,7 @@ export function App() {
     };
     const handleReady = () => {
       void webviewElement.setZoomFactor(1);
+      setIsTransitioning(false);
     };
     const handleStop = () => {
       setConnection(navigator.onLine ? 'online' : 'offline');
@@ -481,12 +526,13 @@ export function App() {
   }, [actionError]);
 
   return (
-    <div className={`app-shell ${themeClass}`}>
+    <div className={`app-shell ${themeClass} ${settings.compactMode ? 'compact-mode' : ''}`}>
       {/* 1. Barra Lateral de Contas (Multi-Sessão) */}
       <nav className="accounts-sidebar" aria-label="Contas do WhatsApp">
         {accounts.map((acc) => {
           const initials = acc.name.slice(0, 2).toUpperCase();
           const isActive = acc.id === activeAccountId;
+          const status = accountStatuses[acc.id] || 'loading';
 
           return (
             <div key={acc.id} className={`account-item-wrapper ${isActive ? 'active' : ''}`}>
@@ -495,9 +541,10 @@ export function App() {
                 type="button"
                 className="account-btn"
                 onClick={() => selectAccount(acc.id)}
-                title={`Trocar para ${acc.name}`}
+                title={`Trocar para ${acc.name} (${status})`}
               >
                 {initials}
+                <span className={`status-dot ${status}`} />
               </button>
               <div className="account-tooltip">
                 {acc.name} {acc.id !== 'default' && '• Clique com botão direito para remover'}
@@ -556,7 +603,7 @@ export function App() {
             <webview
               key={activeAccountId} // Desmonta e recria a webview para trocar de partição de sessão
               ref={setWebviewRef}
-              className="whatsapp-view"
+              className={`whatsapp-view ${isTransitioning ? 'loading-transition' : ''}`}
               src={whatsappHomeUrl}
               partition={accounts.find((a) => a.id === activeAccountId)?.partition ?? 'persist:zapdesk-whatsapp'}
               preload={window.whatsappPreloadPath}
@@ -568,7 +615,6 @@ export function App() {
 
             {/* Menu Rápido de Ações Flutuante */}
             <div className="quick-actions">
-              {unread > 0 && <span className="quick-unread">{unread > 99 ? '99+' : unread}</span>}
               <button
                 type="button"
                 className="quick-trigger"

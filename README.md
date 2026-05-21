@@ -80,6 +80,9 @@ ZapDesk-<versao>-Setup.exe
 | Limpeza de cache e sessao | Recomece a sessao local quando precisar corrigir login ou cache. |
 | Atualizacoes automaticas | O app instalado verifica novas versoes publicadas no GitHub Releases. |
 | Protecao de navegacao | URLs externas sao validadas antes de sair do ambiente do WhatsApp Web. |
+| Atalho rapido via `/` no chat | Digite `/` no chat do WhatsApp para escolher e autocompletar snippets cadastrados. |
+| Indicador de status de conexao | Exibe bolinhas coloridas ao lado das contas para monitorar o status de login de cada uma. |
+| Modo compacto | Opcao para ocultar a barra de contas lateral e focar 100% no chat ativo. |
 
 ## Como Usar
 

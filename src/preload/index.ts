@@ -41,6 +41,8 @@ contextBridge.exposeInMainWorld('zapdesk', {
   getActiveAccountId: () => ipcRenderer.invoke('accounts:getActiveId'),
   setActiveAccountId: (id: string) => ipcRenderer.invoke('accounts:setActiveId', id),
   onActiveAccountChanged: (callback: (id: string) => void) => subscribe<string>('accounts:activeChanged', callback),
+  onAccountStatusChanged: (callback: (payload: { partition: string; status: 'ready' | 'qrcode' | 'loading' | 'offline' }) => void) =>
+    subscribe<{ partition: string; status: 'ready' | 'qrcode' | 'loading' | 'offline' }>('accounts:status-changed', callback),
 
   getSnippets: () => ipcRenderer.invoke('snippets:get'),
   saveSnippets: (snippets: Snippet[]) => ipcRenderer.invoke('snippets:save', snippets),

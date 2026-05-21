@@ -66,7 +66,13 @@ export function UtilityPanel({
     if (!newContactPhone || !newScheduleText || !newScheduleDateTime) return;
 
     // Limpar o número do telefone (manter apenas números)
-    const cleanedPhone = newContactPhone.replace(/\D/g, '');
+    let cleanedPhone = newContactPhone.replace(/\D/g, '');
+
+    // Adicionar DDI do Brasil automaticamente para telefones de 10 ou 11 digitos
+    if (cleanedPhone.length === 10 || cleanedPhone.length === 11) {
+      cleanedPhone = `55${cleanedPhone}`;
+    }
+
     if (cleanedPhone.length < 10) {
       alert('Por favor, insira um número válido com DDD (ex: 5511999999999)');
       return;

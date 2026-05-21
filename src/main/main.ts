@@ -10,6 +10,7 @@ import {
   nativeImage,
   session,
   WebContents,
+  webContents,
   type ContextMenuParams,
   type MenuItemConstructorOptions,
   type NativeImage,
@@ -214,6 +215,16 @@ function saveSettings(settings: Partial<AppSettings>): AppSettings {
   applySettings(next);
   mainWindow?.webContents.send('settings:changed', next);
 
+  if (settings.darkTheme !== undefined) {
+    for (const wc of webContents.getAllWebContents()) {
+      try {
+        wc.send('theme:changed', settings.darkTheme);
+      } catch (e) {
+        // Ignora se o webContents estiver destruido
+      }
+    }
+  }
+
   if (settings.autoUpdate === true && !isDev) {
     void checkForUpdates();
   }
@@ -388,7 +399,7 @@ function createWindow(): void {
       sandbox: false,
       webviewTag: true,
       spellcheck: false,
-      backgroundThrottling: true
+      backgroundThrottling: false
     }
   });
 
@@ -827,7 +838,7 @@ function configureWebContentsSecurity(webContents: WebContents): void {
     webPreferences.sandbox = true;
     webPreferences.spellcheck = getSettings().spellChecker;
     webPreferences.transparent = false;
-    webPreferences.backgroundThrottling = true;
+    webPreferences.backgroundThrottling = false;
   });
 
   webContents.on('context-menu', (_event, params) => {
@@ -946,6 +957,7 @@ function configureWebContentsSecurity(webContents: WebContents): void {
 function setupIpc(): void {
   ipcMain.handle('settings:get', () => getSettings());
   ipcMain.handle('settings:update', (_event, settings: Partial<AppSettings>) => saveSettings(settings));
+  ipcMain.handle('theme:get-current', () => getSettings().darkTheme);
   ipcMain.handle('updates:get', () => updateStatus);
   ipcMain.handle('updates:check', () => checkForUpdates());
   ipcMain.handle('updates:install', () => installDownloadedUpdate());
@@ -1006,6 +1018,26 @@ function setupIpc(): void {
     if (!isAllowedWhatsAppMainFrameUrl(event.sender.getURL())) return;
 
     mainWindow?.webContents.send('whatsapp:ready-state', true);
+  });
+  ipcMain.on('whatsapp:status-changed', (event, status: string) => {
+    if (!isAllowedWhatsAppMainFrameUrl(event.sender.getURL())) return;
+
+    const accounts = getAccounts();
+    const senderSession = event.sender.session;
+    const matchedAccount = accounts.find((acc) => {
+      try {
+        return session.fromPartition(acc.partition) === senderSession;
+      } catch {
+        return false;
+      }
+    });
+
+    if (matchedAccount) {
+      mainWindow?.webContents.send('accounts:status-changed', {
+        partition: matchedAccount.partition,
+        status
+      });
+    }
   });
   ipcMain.on('shell:open-external-from-webview', (event, url: unknown) => {
     if (typeof url !== 'string') return;

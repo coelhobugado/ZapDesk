@@ -31,6 +31,7 @@ declare global {
       getActiveAccountId: () => Promise<string>;
       setActiveAccountId: (id: string) => Promise<string>;
       onActiveAccountChanged: (callback: (id: string) => void) => () => void;
+      onAccountStatusChanged: (callback: (payload: { partition: string; status: 'ready' | 'qrcode' | 'loading' | 'offline' }) => void) => () => void;
 
       getSnippets: () => Promise<Snippet[]>;
       saveSnippets: (snippets: Snippet[]) => Promise<Snippet[]>;
@@ -51,6 +52,8 @@ declare global {
         preload?: string;
         webpreferences?: string;
         useragent?: string;
+        allowpopups?: boolean;
+        onDomReady?: (event: any) => void;
       };
     }
   }

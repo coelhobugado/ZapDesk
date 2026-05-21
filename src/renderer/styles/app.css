@@ -1203,3 +1203,113 @@ button {
   font-weight: 700;
   color: var(--text);
 }
+
+/* ==========================================================================
+   Novas Features: Bolinhas de status, transição suave, modo compacto e popup
+   ========================================================================== */
+
+/* Bolinhas de Status de Conexão na Sidebar */
+.account-btn {
+  position: relative; /* Garantir posicionamento da bolinha em relacao ao botao */
+}
+
+.status-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #0f1514; /* Vaza o fundo da sidebar dark */
+  z-index: 10;
+  transition: background-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.status-dot.ready {
+  background-color: #0df07e;
+  box-shadow: 0 0 6px rgba(13, 240, 126, 0.4);
+}
+
+.status-dot.qrcode {
+  background-color: #f7a014;
+  box-shadow: 0 0 6px rgba(247, 160, 20, 0.4);
+}
+
+.status-dot.loading {
+  background-color: #14b0f7;
+  animation: pulse-loading-status 1.5s infinite ease-in-out;
+}
+
+.status-dot.offline {
+  background-color: #888888;
+}
+
+@keyframes pulse-loading-status {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(20, 176, 247, 0.6);
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+}
+
+/* Transição Suave de Contas */
+.whatsapp-view {
+  transition: opacity 0.25s ease-in-out;
+}
+
+.whatsapp-view.loading-transition {
+  opacity: 0.2;
+}
+
+/* Modo Compacto */
+.app-shell.compact-mode .accounts-sidebar {
+  display: none;
+}
+
+.app-shell.compact-mode .background-send-indicator {
+  left: 16px; /* Ajusta a posição do toast de background para compensar a ausência da sidebar */
+}
+
+/* Popup de Autocomplete de Snippets */
+#zapdesk-snippets-popup {
+  font-family: inherit;
+}
+
+#zapdesk-snippets-popup::-webkit-scrollbar {
+  width: 6px;
+}
+
+#zapdesk-snippets-popup::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+}
+
+#zapdesk-snippets-popup::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+#zapdesk-snippets-popup::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.zapdesk-snippet-item.active {
+  background: #0df07e !important;
+  color: #0c1110 !important;
+}
+
+.zapdesk-snippet-item:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.zapdesk-snippet-item.active:hover {
+  background: #0df07e !important;
+}
