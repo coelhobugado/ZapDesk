@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Bell, Download, Moon, Pin, RefreshCw, RotateCcw, Save, SpellCheck, X } from 'lucide-react';
+import { Bell, Download, Moon, Pin, RefreshCw, RotateCcw, Save, SpellCheck, X, Minimize2 } from 'lucide-react';
 import type { AppSettings, AppUpdateStatus } from '../../shared/settings';
 
 type Props = {
@@ -118,9 +118,16 @@ export function SettingsPanel({
           <ToggleRow
             icon={<SpellCheck size={18} />}
             title="Corretor ortografico"
-            description="Mostra sugestoes e marca erros ao digitar no WhatsApp."
+            description="Mostra sugestoes e mark erros ao digitar no WhatsApp."
             checked={settings.spellChecker}
             onChange={(checked) => onChange({ spellChecker: checked })}
+          />
+          <ToggleRow
+            icon={<Minimize2 size={18} />}
+            title="Modo compacto"
+            description="Oculta a barra de contas lateral para maximizar a área do chat."
+            checked={settings.compactMode}
+            onChange={(checked) => onChange({ compactMode: checked })}
           />
 
           <section className="update-section" aria-label="Atualizacoes do ZapDesk">

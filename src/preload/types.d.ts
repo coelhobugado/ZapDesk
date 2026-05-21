@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { AppSettings, AppUpdateStatus, ConnectionState, UnreadPayload } from '../shared/settings';
+import type { AppSettings, AppUpdateStatus, ConnectionState, UnreadPayload, Account, Snippet, ScheduledMessage } from '../shared/settings';
 
 declare global {
   interface Window {
@@ -24,6 +24,23 @@ declare global {
       onLoadStarted: (callback: () => void) => () => void;
       onLoadFinished: (callback: () => void) => () => void;
       onWhatsAppCommand: (callback: (command: 'reload') => void) => () => void;
+      onWhatsAppReady: (callback: () => void) => () => void;
+
+      getAccounts: () => Promise<Account[]>;
+      saveAccounts: (accounts: Account[]) => Promise<Account[]>;
+      getActiveAccountId: () => Promise<string>;
+      setActiveAccountId: (id: string) => Promise<string>;
+      onActiveAccountChanged: (callback: (id: string) => void) => () => void;
+      onAccountStatusChanged: (callback: (payload: { partition: string; status: 'ready' | 'qrcode' | 'loading' | 'offline' }) => void) => () => void;
+
+      getSnippets: () => Promise<Snippet[]>;
+      saveSnippets: (snippets: Snippet[]) => Promise<Snippet[]>;
+      onSnippetsChanged: (callback: (snippets: Snippet[]) => void) => () => void;
+
+      getSchedules: () => Promise<ScheduledMessage[]>;
+      saveSchedules: (schedules: ScheduledMessage[]) => Promise<ScheduledMessage[]>;
+      onSchedulesChanged: (callback: (schedules: ScheduledMessage[]) => void) => () => void;
+      onScheduleSendRequest: (callback: (message: ScheduledMessage) => void) => () => void;
     };
   }
 
@@ -35,6 +52,8 @@ declare global {
         preload?: string;
         webpreferences?: string;
         useragent?: string;
+        allowpopups?: boolean;
+        onDomReady?: (event: any) => void;
       };
     }
   }

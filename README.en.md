@@ -31,9 +31,9 @@ ZapDesk is an alternative desktop client for using WhatsApp Web on Windows with 
 
 It was built for people who rely on WhatsApp on desktop but do not want customer chats hidden among browser tabs or interrupted by a heavy, unstable official app.
 
-ZapDesk keeps WhatsApp Web in its own window with tray support, native notifications, unread counters, global shortcuts, persistent session storage, spell checking, and automatic updates.
+ZapDesk keeps WhatsApp Web in its own window with tray support, native notifications, unread counters, global shortcuts, persistent session storage, multiple accounts, quick replies, local scheduled messages, spell checking, and automatic updates.
 
-> ZapDesk does not automate messages, does not send bulk messages, does not spam, and does not try to bypass WhatsApp rules. It is only an alternative desktop client for normal WhatsApp Web usage.
+> ZapDesk does not send bulk messages, does not spam, and does not try to bypass WhatsApp rules. Quick replies and local scheduled messages are productivity features for individual, responsible WhatsApp Web usage.
 
 ## Download
 
@@ -64,6 +64,9 @@ ZapDesk-<version>-Setup.exe
 | --- | --- |
 | Dedicated WhatsApp Web window | Keeps WhatsApp separated from the browser and easier to find. |
 | Persistent session | Avoids scanning the QR Code every time. |
+| Isolated multiple accounts | Create separate accounts, each with its own persistent session. |
+| Quick replies | Save snippets and insert frequent text into the current chat. |
+| Local scheduled messages | Schedule messages for phone-number contacts using the selected account session. |
 | Windows tray support | Open, hide, reload, check updates, or quit from the tray icon. |
 | Minimize on close | The close button can hide the app to tray instead of quitting. |
 | Native notifications | Receive Windows alerts when new messages arrive. |
@@ -87,6 +90,8 @@ ZapDesk-<version>-Setup.exe
 5. Scan the WhatsApp Web QR Code if requested.
 6. Use it normally. Your session stays saved locally.
 
+To use more than one account, click the `+` button in the sidebar and scan the QR Code for the new session. To open quick replies and schedules, use the three-dot menu and select `Ferramentas`.
+
 ## Shortcuts
 
 | Shortcut | Action |
@@ -99,7 +104,9 @@ ZapDesk-<version>-Setup.exe
 
 ZapDesk uses GitHub Releases with `electron-updater`.
 
-When a new version is published correctly, installed apps can detect, download, and install the update. Each release must include:
+When a new version is published correctly, installed apps can detect, download, and install the update from inside ZapDesk. Users can check manually in `Configuracoes > Verificar atualizacoes` or from the tray menu with `Verificar atualizacoes`.
+
+Each release must include:
 
 - `ZapDesk-<version>-Setup.exe`
 - `ZapDesk-<version>-Setup.exe.blockmap`
@@ -112,6 +119,8 @@ com.zapdesk.app
 ```
 
 Keeping this identifier stable lets Windows and the updater recognize the app as the same installation between versions.
+
+To publish a version that updates installed apps, bump `version` in `package.json`, run `npm run dist` on Windows, and publish the three artifacts above in a final GitHub Release, not a draft.
 
 ## Privacy And Security
 
@@ -213,7 +222,6 @@ Natural ideas for evolving ZapDesk:
 - additional visual themes;
 - digitally signed installer;
 - documentation page with screenshots;
-- optional multi-profile support;
 - accessibility improvements;
 - optional local diagnostics, without message content.
 
@@ -229,9 +237,11 @@ Before opening a pull request:
 4. Clearly describe the problem being solved.
 5. Avoid abusive automation, bulk messaging, or anything that violates WhatsApp rules.
 
-## About Automation
+## About Automation And Responsible Use
 
-This version does not use `whatsapp-web.js`. There is only an extension point at `src/main/optional/whatsappWebJsAdapter.ts` for a possible future optional integration, without implementing spam, bulk sending, or abusive automation.
+This version does not use `whatsapp-web.js`. There is only an extension point at `src/main/optional/whatsappWebJsAdapter.ts` for a possible future optional integration.
+
+Current schedules use the user's local WhatsApp Web session. They are not a server-side queue, do not do bulk sending, and may fail if WhatsApp Web changes its interface, if the account is disconnected, or if the computer is offline.
 
 ## Disclaimer
 
